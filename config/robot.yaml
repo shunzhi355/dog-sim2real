@@ -1,0 +1,215 @@
+# No physical calibration is assumed. Default CLI runs mock I/O only.
+version: 1
+policy_manifest: ../policies/robot12/manifest.json
+command:
+  host: 127.0.0.1
+  port: 9871
+  source: manual
+  timeout_s: 0.3
+# frequency [Hz], stance fraction, clearance [m], FL/FR/RL/RR offsets
+# These values are within the imported run's training envelope.
+gait: [1.5, 0.575, 0.02, 0.0, 0.5, 0.5, 0.0]
+safety:
+  joint_timeout_s: 0.10
+  imu_timeout_s: 0.10
+  target_timeout_s: 0.10
+  max_tilt_rad: 0.35
+  max_target_speed_rad_s: 1.0
+  max_action_abs: 8.0
+  startup_pose_tolerance_rad: 0.25
+  startup_timeout_s: 3.0
+  max_loop_lag_s: 0.05
+# Header pinmux is documented in README; ports still require enabling and testing.
+# External automatic half-duplex adapters: no TX_EN/RX_EN GPIO wiring.
+# Never tie bare TX/RX directly to the servo DATA bus.
+buses:
+  - name: fl
+    port: /dev/ttyS1
+    baudrate: 115200
+    verified: false
+    read_timeout_s: 0.008
+    query_period_s: 0.006
+    quiet_after_timeout_s: 0.006
+    direction:
+      mode: auto
+  - name: fr
+    port: /dev/ttyS3
+    baudrate: 115200
+    verified: false
+    read_timeout_s: 0.008
+    query_period_s: 0.006
+    quiet_after_timeout_s: 0.006
+    direction:
+      mode: auto
+  - name: rl
+    port: /dev/ttyS4
+    baudrate: 115200
+    verified: false
+    read_timeout_s: 0.008
+    query_period_s: 0.006
+    quiet_after_timeout_s: 0.006
+    direction:
+      mode: auto
+  - name: rr
+    port: /dev/ttyS6
+    baudrate: 115200
+    verified: false
+    read_timeout_s: 0.008
+    query_period_s: 0.006
+    quiet_after_timeout_s: 0.006
+    direction:
+      mode: auto
+imu:
+  driver: unset  # wit_serial or mpu6050_i2c; not auto-detected
+  mount_verified: false
+  sensor_to_body: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  serial_port: /dev/serial/by-id/REPLACE_WITH_IMU
+  baudrate: 115200
+  i2c_bus: 1  # placeholder; verify accessible header bus before changing
+  i2c_address: 0x68
+  gyro_bias_rad_s: [0, 0, 0]  # sensor frame; measure for MPU6050
+vision:
+  source: /dev/video0
+  backend: v4l2
+  width: 640
+  height: 480
+  fps: 30
+  max_frame_age_s: 0.15
+  line:
+    roi_top: 0.55
+    hsv_low: [0, 0, 0]
+    hsv_high: [179, 255, 70]
+    min_area_px: 80
+  follow:
+    forward_m_s: 0.12
+    max_yaw_rad_s: 0.4
+    lateral_gain: 0.5
+    heading_gain: 0.4
+  colours:
+    red: [[[0, 100, 80], [10, 255, 255]], [[170, 100, 80], [179, 255, 255]]]
+    green: [[[35, 80, 60], [85, 255, 255]]]
+    blue: [[[95, 100, 60], [130, 255, 255]]]
+# IDs follow project/dog; zero/direction/mechanical limits must be measured.
+# *_input_joint is the motor driving the linkage, not the passive knee angle.
+joints:
+  - name: fl_hip_joint
+    bus: fl
+    id: 1
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: fl_upper_joint
+    bus: fl
+    id: 2
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: fl_input_joint
+    bus: fl
+    id: 3
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: fr_hip_joint
+    bus: fr
+    id: 4
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: fr_upper_joint
+    bus: fr
+    id: 5
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: fr_input_joint
+    bus: fr
+    id: 6
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rl_hip_joint
+    bus: rl
+    id: 7
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rl_upper_joint
+    bus: rl
+    id: 8
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rl_input_joint
+    bus: rl
+    id: 9
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rr_hip_joint
+    bus: rr
+    id: 10
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rr_upper_joint
+    bus: rr
+    id: 11
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+  - name: rr_input_joint
+    bus: rr
+    id: 12
+    verified: false
+    raw_zero: null
+    direction: null
+    units_per_rad: 238.732414637843
+    zero_rad: 0.0
+    min_rad: null
+    max_rad: null
+

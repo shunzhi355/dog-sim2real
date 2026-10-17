@@ -1,0 +1,16 @@
+[Unit]
+Description=Robot12 hardware shadow inference (no actuator writes)
+After=network.target
+
+[Service]
+Type=simple
+User=orangepi
+WorkingDirectory=/home/orangepi/dog-3588
+ExecStart=/home/orangepi/dog-3588/.venv/bin/python -m dog3588 --config config/local.yaml run --hardware --seconds 0
+Restart=no
+TimeoutStopSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,27 @@
+[Unit]
+Description=TightVNC XFCE desktop for orangepi on display :1
+After=network.target
+
+[Service]
+Type=forking
+User=orangepi
+Group=orangepi
+WorkingDirectory=/home/orangepi
+Environment=HOME=/home/orangepi
+Environment=USER=orangepi
+Environment=LOGNAME=orangepi
+Environment=XAUTHORITY=/home/orangepi/.vnc/Xauthority
+Environment=XDG_RUNTIME_DIR=/run/vnc-orangepi
+RuntimeDirectory=vnc-orangepi
+RuntimeDirectoryMode=0700
+PIDFile=/home/orangepi/.vnc/%H:1.pid
+ExecStart=/usr/bin/tightvncserver :1 -geometry 1024x768 -depth 24 -nolisten tcp
+ExecStop=/usr/bin/tightvncserver -kill :1
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,16 @@
+[Unit]
+Description=Robot12 camera and line following velocity source
+After=network.target
+
+[Service]
+Type=simple
+User=orangepi
+WorkingDirectory=/home/orangepi/dog-3588
+ExecStart=/home/orangepi/dog-3588/.venv/bin/python -m dog3588 --config config/local.yaml camera --publish
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+

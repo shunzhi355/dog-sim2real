@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "file": "policy.onnx",
+  "sha256": "4662a7cb8eb4a2ee6e57355222e8efd52f92ea9aa8c3fa86eb5cf8b6d72f46f5",
+  "robot": "Robot12",
+  "control_hz": 50.0,
+  "history_layout": "term_major_oldest_first",
+  "history_length": 5,
+  "history_reset": "repeat_first_sample",
+  "observation_size": 280,
+  "action_size": 12,
+  "terms": [
+    {
+      "name": "base_ang_vel",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "projected_gravity",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "velocity_commands",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "joint_pos",
+      "size": 12,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "joint_vel",
+      "size": 12,
+      "scale": 0.05,
+      "clip": null
+    },
+    {
+      "name": "actions",
+      "size": 12,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "gait_parameters",
+      "size": 7,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "gait_clock",
+      "size": 4,
+      "scale": 1.0,
+      "clip": null
+    }
+  ],
+  "joint_names": [
+    "fl_hip_joint",
+    "fl_upper_joint",
+    "fl_input_joint",
+    "fr_hip_joint",
+    "fr_upper_joint",
+    "fr_input_joint",
+    "rl_hip_joint",
+    "rl_upper_joint",
+    "rl_input_joint",
+    "rr_hip_joint",
+    "rr_upper_joint",
+    "rr_input_joint"
+  ],
+  "action_scale": 0.25,
+  "default_joint_pos": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "default_joint_vel": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "gait": {
+    "frequency_hz": [
+      1.0,
+      2.0
+    ],
+    "stance_fraction": [
+      0.55,
+      0.6
+    ],
+    "clearance_m": [
+      0.015,
+      0.025
+    ],
+    "phase_offsets": [
+      0.0,
+      0.5,
+      0.5,
+      0.0
+    ],
+    "yaw_threshold_rad_s": 0.02
+  },
+  "velocity_ranges": {
+    "lin_vel_x": [
+      0.1,
+      0.3
+    ],
+    "lin_vel_y": [
+      0.0,
+      0.0
+    ],
+    "ang_vel_z": [
+      -0.4,
+      0.4
+    ]
+  },
+  "normalization": "exported_graph_only",
+  "deployment_noise": false,
+  "training": {
+    "run": "2026-10-15_22-39-49_forward_baseline_continue",
+    "repository_commit_at_import": "0740f0683543e766a9d277ad62d95b271a4c8bad",
+    "source_graph_sha256": "9ec7ffca78d6cf506e959e684c44d0da64a95c92773e6d9f025e65a07995bf64",
+    "env_yaml_sha256": "1bf95e0e0aeb458caf392d1a6233c6b8faefce47fae0fd673b41761a86e18e72",
+    "checkpoint": "unknown: exported ONNX contains no checkpoint metadata",
+    "terrain_type": "plane",
+    "actuator": "MotorPDActuator: simulated torque PD; real LX824 uses internal position servo"
+  }
+}

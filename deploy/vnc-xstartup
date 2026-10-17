@@ -1,0 +1,8 @@
+#!/bin/sh
+# Isolate the virtual desktop from an existing local XFCE/DBus session.
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=XFCE
+exec /usr/bin/dbus-run-session -- /usr/bin/startxfce4
+
