@@ -1,5 +1,7 @@
 # 部署与开发
 
+> 新的 STM32 上位机架构、相机/ToF接线、CLI 与回放操作见 [robot-deploy.md](robot-deploy.md)。默认配置为 `config/robot-deploy.yaml`。本文保留已有板端部署记录；直连舵机操作必须显式传入 `--config config/robot.yaml`。新只读服务模板是 `deploy/robot-deploy-shadow.service`，尚未安装或启用。
+
 ## 向香橙派同步
 
 ```powershell
@@ -50,7 +52,7 @@
 
 ## 扩展接口
 
-新增关节总线后端实现 `JointIO`：`start/read/command/close`，读出 12 个电机位置、速度、采集时间。控制代码不依赖其是直接 UART 还是将来的 STM32 桥。
+新增关节总线后端实现 `JointIO`：`start/read/command/close`，读出 12 个电机位置、速度、采集时间。控制代码可选择旧直接 UART 或已实现的 `STM32Bridge`。
 
 新增 IMU 驱动实现 `ImuIO`：统一输出机身坐标系角速度与单位重力向量、单调采样时间。不要把原始加速度直接当成动态姿态，不能用旧姿态配新时间戳掩盖失联。
 

@@ -10,6 +10,19 @@ import numpy as np
 TERM_DIMS = {"base_ang_vel": 3, "projected_gravity": 3, "velocity_commands": 3,
              "joint_pos": 12, "joint_vel": 12, "actions": 12,
              "gait_parameters": 7, "gait_clock": 4}
+TERRAIN_TERM_DIMS = {**TERM_DIMS, "height_scan": 8}
+
+
+def validate_height_contract(contract: dict) -> None:
+    """Require the spatial meaning exported by training, not merely 320 floats."""
+    expected = {"frame": "leveled_body", "units": "m", "reference": "body_origin",
+                "invalid_policy": "stop"}
+    if not isinstance(contract, dict) or any(contract.get(k) != v for k, v in expected.items()):
+        raise ValueError("unsupported/missing height_scan_contract")
+    xy = np.asarray(contract.get("sample_xy_m"), dtype=float)
+    if (xy.shape != (8, 2) or not np.isfinite(xy).all()
+            or len(np.unique(xy, axis=0)) != 8):
+        raise ValueError("height_scan_contract requires eight distinct sample_xy_m")
 
 
 def load_manifest(path: str | Path) -> dict:
@@ -17,14 +30,21 @@ def load_manifest(path: str | Path) -> dict:
     m = json.loads(path.read_text(encoding="utf-8"))
     if m.get("schema_version") != 1 or m.get("history_layout") != "term_major_oldest_first":
         raise ValueError("unsupported policy schema/history layout")
-    if [t["name"] for t in m["terms"]] != list(TERM_DIMS):
+    names = [t["name"] for t in m["terms"]]
+    dimensions = TERRAIN_TERM_DIMS if names == list(TERRAIN_TERM_DIMS) else TERM_DIMS
+    if names != list(dimensions):
         raise ValueError("unsupported observation terms/order")
-    if m["history_length"] != 5 or m["observation_size"] != 280 or m["action_size"] != 12:
-        raise ValueError("this adapter supports Robot12 gait actor 280 -> 12")
+    expected_size = 5 * sum(dimensions.values())
+    if m["history_length"] != 5 or m["observation_size"] != expected_size or m["action_size"] != 12:
+        raise ValueError("Robot12 requires 5-frame 280/320 -> 12; 288 is not supported")
+    if "height_scan" in dimensions:
+        validate_height_contract(m.get("height_scan_contract"))
+    elif "height_scan_contract" in m:
+        raise ValueError("blind policy cannot declare a height_scan contract")
     if len(m["joint_names"]) != 12 or len(set(m["joint_names"])) != 12:
         raise ValueError("expected 12 distinct motor joints")
     for t in m["terms"]:
-        if t["size"] != TERM_DIMS[t["name"]]:
+        if t["size"] != dimensions[t["name"]]:
             raise ValueError("incorrect observation term dimension")
         scale = np.asarray(t["scale"], dtype=float)
         if scale.shape not in ((), (t["size"],)) or not np.isfinite(scale).all():
@@ -59,6 +79,7 @@ class OnnxPolicy:
     def __init__(self, manifest: dict):
         import onnxruntime as ort
 
+        self.observation_size = manifest["observation_size"]
         ort.disable_telemetry_events()
         options = ort.SessionOptions()
         options.intra_op_num_threads = 1
@@ -67,15 +88,15 @@ class OnnxPolicy:
         self.session = ort.InferenceSession(manifest["model_path"], sess_options=options,
                                             providers=["CPUExecutionProvider"])
         inputs, outputs = self.session.get_inputs(), self.session.get_outputs()
-        if (len(inputs) != 1 or len(outputs) != 1 or inputs[0].shape != [1, 280]
+        if (len(inputs) != 1 or len(outputs) != 1 or inputs[0].shape != [1, self.observation_size]
                 or outputs[0].shape != [1, 12] or inputs[0].type != "tensor(float)"
                 or outputs[0].type != "tensor(float)"):
-            raise ValueError("ONNX tensors must be one float32 [1,280] input and [1,12] output")
+            raise ValueError(f"ONNX tensors must be float32 [1,{self.observation_size}] -> [1,12]")
         self.input_name, self.output_name = inputs[0].name, outputs[0].name
 
     def infer(self, observation: np.ndarray) -> np.ndarray:
         observation = np.asarray(observation, dtype=np.float32)
-        if observation.shape != (280,) or not np.isfinite(observation).all():
+        if observation.shape != (self.observation_size,) or not np.isfinite(observation).all():
             raise ValueError("invalid policy observation")
         out = self.session.run([self.output_name], {self.input_name: observation[None]})[0]
         if out.shape != (1, 12) or not np.isfinite(out).all():
@@ -85,7 +106,7 @@ class OnnxPolicy:
     def benchmark(self, count: int = 1000) -> dict:
         if count <= 0:
             raise ValueError("benchmark count must be positive")
-        obs = np.zeros(280, dtype=np.float32)
+        obs = np.zeros(self.observation_size, dtype=np.float32)
         for _ in range(20):
             self.infer(obs)
         elapsed = []

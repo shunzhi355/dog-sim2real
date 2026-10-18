@@ -17,7 +17,7 @@ import numpy as np
 import onnx
 import yaml
 
-from dog3588.policy import TERM_DIMS, OnnxPolicy
+from dog3588.policy import TERM_DIMS, TERRAIN_TERM_DIMS, OnnxPolicy, validate_height_contract, load_manifest
 
 
 class DataOnlyLoader(yaml.SafeLoader):
@@ -47,15 +47,18 @@ def resolve_defaults(patterns, names):
     return result
 
 
-def build_manifest(env, model_path):
+def build_manifest(env, model_path, height_contract=None):
     group = env["observations"]["policy"]
     if (group["history_length"] != 5 or not group["flatten_history_dim"]
             or not group["concatenate_terms"] or group["concatenate_dim"] != -1):
         raise ValueError("unsupported actor history/concatenation settings")
     metadata_keys = {"concatenate_terms", "concatenate_dim", "enable_corruption", "history_length", "flatten_history_dim"}
     names = [k for k, v in group.items() if k not in metadata_keys and v is not None]
-    if names != list(TERM_DIMS):
+    dimensions = TERRAIN_TERM_DIMS if height_contract is not None else TERM_DIMS
+    if names != list(dimensions):
         raise ValueError(f"unsupported actor terms/order: {names}")
+    if height_contract is not None:
+        validate_height_contract(height_contract.get("height_scan_contract"))
     funcs = {"base_ang_vel": "base_ang_vel", "projected_gravity": "projected_gravity",
              "velocity_commands": "generated_commands", "joint_pos": "joint_pos_rel",
              "joint_vel": "joint_vel_rel", "actions": "last_action",
@@ -64,17 +67,21 @@ def build_manifest(env, model_path):
     for name in names:
         term = group[name]
         module = "robot_lab.tasks.velocity.mdp.gait" if name == "gait_clock" else "isaaclab.envs.mdp.observations"
-        if term["func"] != f"{module}:{funcs[name]}" or term.get("modifiers"):
+        expected_function = (height_contract["observation_function"] if name == "height_scan"
+                             else f"{module}:{funcs[name]}")
+        if term["func"] != expected_function or term.get("modifiers"):
             raise ValueError(f"unsupported transform/function for {name}")
+        if name == "height_scan" and term["params"] != height_contract["observation_params"]:
+            raise ValueError("height_scan parameters differ from exported spatial contract")
         if name in ("velocity_commands", "gait_parameters"):
             expected = "base_velocity" if name == "velocity_commands" else "gait"
             if term["params"] != {"command_name": expected}:
                 raise ValueError(f"unexpected command source: {name}")
         scale = term["scale"] if term["scale"] is not None else 1.0
         a = np.asarray(scale, dtype=float)
-        if a.shape not in ((), (TERM_DIMS[name],)) or not np.isfinite(a).all():
+        if a.shape not in ((), (dimensions[name],)) or not np.isfinite(a).all():
             raise ValueError(f"unsupported scale for {name}")
-        terms.append({"name": name, "size": TERM_DIMS[name], "scale": scale, "clip": term["clip"]})
+        terms.append({"name": name, "size": dimensions[name], "scale": scale, "clip": term["clip"]})
     actions = env["actions"]
     if list(actions) != ["joint_pos"]:
         raise ValueError("expected one joint-position action term")
@@ -100,7 +107,7 @@ def build_manifest(env, model_path):
     manifest = {"schema_version": 1, "file": "policy.onnx", "sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
                 "robot": "Robot12", "control_hz": 1 / dt,
                 "history_layout": "term_major_oldest_first", "history_length": 5,
-                "history_reset": "repeat_first_sample", "observation_size": 280, "action_size": 12,
+                "history_reset": "repeat_first_sample", "observation_size": 5 * sum(dimensions.values()), "action_size": 12,
                 "terms": terms, "joint_names": joint_names, "action_scale": action_scale,
                 "default_joint_pos": resolve_defaults(env["scene"]["robot"]["init_state"]["joint_pos"], joint_names),
                 "default_joint_vel": resolve_defaults(env["scene"]["robot"]["init_state"]["joint_vel"], joint_names),
@@ -108,6 +115,8 @@ def build_manifest(env, model_path):
                 "velocity_ranges": {k: env["commands"]["base_velocity"]["ranges"][k]
                                     for k in ("lin_vel_x", "lin_vel_y", "ang_vel_z")},
                 "normalization": "exported_graph_only", "deployment_noise": False}
+    if height_contract is not None:
+        manifest["height_scan_contract"] = height_contract["height_scan_contract"]
     OnnxPolicy({**manifest, "model_path": str(model_path)})
     return manifest
 
@@ -116,6 +125,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("policies/robot12"))
+    parser.add_argument("--height-contract", type=Path,
+                        help="training-exported spatial contract and exact height observation function/params")
     args = parser.parse_args()
     run = args.run.resolve()
     source = run / "exported/policy.onnx"
@@ -146,16 +157,18 @@ def main():
         onnx.external_data_helper.convert_model_from_external_data(model)
         onnx.checker.check_model(model)
         onnx.save_model(model, str(stage / "policy.onnx"), save_as_external_data=False)
-        manifest = build_manifest(env, stage / "policy.onnx")
+        height_contract = json.loads(args.height_contract.read_text(encoding="utf-8")) if args.height_contract else None
+        manifest = build_manifest(env, stage / "policy.onnx", height_contract)
         manifest["training"] = provenance
         shutil.copy2(config_path, stage / "training_env.yaml")
         shutil.copy2(agent_path, stage / "training_agent.yaml")
         (stage / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
+        load_manifest(stage / "manifest.json")
         args.output.mkdir(parents=True, exist_ok=True)
         for filename in ("policy.onnx", "training_env.yaml", "training_agent.yaml", "manifest.json"):
             (stage / filename).replace(args.output / filename)
     print(json.dumps({"output": str(args.output), "sha256": manifest["sha256"],
-                      "input": [1, 280], "output_shape": [1, 12]}, ensure_ascii=False))
+                      "input": [1, manifest["observation_size"]], "output_shape": [1, 12]}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

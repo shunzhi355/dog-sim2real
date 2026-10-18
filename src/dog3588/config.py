@@ -134,3 +134,41 @@ def validate_hardware(cfg: dict, joint_names: list[str], *, arm: bool) -> list[C
             raise ValueError("IMU axes and gyro calibration must be verified")
     return calibrations
 
+
+@dataclass(frozen=True)
+class JointLimits:
+    """Host-side radians only. Raw LX824 conversion belongs to STM32."""
+
+    name: str
+    min_rad: float
+    max_rad: float
+
+    def to_raw(self, q: float) -> float:
+        # SafetyGuard's existing calibration interface; no servo counts are generated.
+        q = finite(float(q), self.name)
+        if not self.min_rad <= q <= self.max_rad:
+            raise ValueError(f"{self.name}: target outside calibrated limits")
+        return q
+
+
+def validate_bridge_hardware(cfg, joint_names, *, arm):
+    bridge = cfg["bridge"]
+    if not bridge.get("port") or type(bridge.get("baudrate")) is not int or bridge["baudrate"] <= 0:
+        raise ValueError("configure an independent STM32 serial port and baudrate")
+    if [j["name"] for j in cfg["joints"]] != joint_names:
+        raise ValueError("STM32 joint order differs from policy manifest")
+    if not arm:
+        return None
+    for key in ("verified", "imu_mount_verified", "joint_mapping_verified"):
+        if bridge.get(key) is not True:
+            raise ValueError(f"bridge.{key} must be verified before arming")
+    limits = []
+    for joint in cfg["joints"]:
+        if joint.get("verified") is not True:
+            raise ValueError(f"{joint['name']}: joint limits are not verified")
+        lo, hi = finite(joint.get("min_rad"), "min_rad"), finite(joint.get("max_rad"), "max_rad")
+        if lo >= hi:
+            raise ValueError("joint minimum must be below maximum")
+        limits.append(JointLimits(joint["name"], lo, hi))
+    return limits
+

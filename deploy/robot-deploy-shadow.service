@@ -1,0 +1,15 @@
+[Unit]
+Description=Robot12 STM32 host shadow with Orange Pi camera/ToF configuration
+After=network.target
+
+[Service]
+Type=simple
+User=orangepi
+WorkingDirectory=/home/orangepi/dog-3588
+ExecStart=/home/orangepi/dog-3588/.venv/bin/python -m dog3588 --config config/local-deploy.yaml run --hardware --seconds 0
+Restart=no
+TimeoutStopSec=8
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

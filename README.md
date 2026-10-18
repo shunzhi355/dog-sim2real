@@ -1,23 +1,28 @@
 # dog-3588：Robot12 香橙派部署框架
 
-面向香橙派 5 Max / Ubuntu 22.04 / 12 个 LX824。已导入 `robot-lab` 现有 actor；采用 **Python + ONNX Runtime CPU，50 Hz 控制，四条腿独立串口，视觉独立进程**。无需在香橙派安装 Isaac Lab、CUDA 或 ROS。
+本仓库承担 **robot-deploy 上位机**职责，运行在香橙派 5 Max：USB 相机和 VL53L5CX ToF 均直接连接香橙派，完成视觉、地形高度、任务状态机和 ONNX CPU 推理；STM32 负责 IMU、12 个 LX824 及四路腿部 UART。无需安装 Isaac Lab、CUDA 或 ROS。
 
-一台香橙派承担策略、摄像头和四路舵机通信在计算上可行。实际能否稳定运动，取决于半双工回读时序、机械标定、IMU 和仿真执行器与实物的差异。初版重点是把这些环节拆开调试。当前不代表机器狗已通过实物行走/越障验收。
+**当前入口：[上位机部署指南](docs/robot-deploy.md)、[默认配置](config/robot-deploy.yaml)。** CLI 默认使用 STM32 架构。旧 `config/robot.yaml` 及原舵机回读工具保留，用 `--config config/robot.yaml` 显式选择；本文后面的四路香橙派 UART、独立 IMU、黑线和板端部署记录属于旧直连方案，不能与新配置混用。
+
+软件包含离线测试和完整任务回放；当前随仓库模型仍是 **280 维平地盲走模型**，不是已经训练好的 320 维 ToF 策略。实机标定、固件链路启用、现场几何事件检测、投递机构及比赛验收仍需完成。
 
 ## 已实现
 
 | 模块 | 功能 | 文件 |
 |---|---|---|
 | 策略 | ONNX CPU 推理、维度/哈希检查、测速 | `src/dog3588/policy.py` |
-| 训练接口 | 280 维观测、每项 5 帧历史、步态时钟、12 维动作 | `src/dog3588/observation.py` |
+| 训练接口 | 280/320 维显式契约、每项 5 帧历史、步态时钟、12 维动作 | `src/dog3588/observation.py` |
+| STM32 链路 | 与相邻固件一致的 RobotLink v1、CRC16、采样时间映射、ACK/超时/停止 | `src/dog3588/transport.py` |
+| ToF | 香橙派 I²C 64 区采集、有效性、安装外参/姿态补偿、8 点高度 | `src/dog3588/tof.py` |
+| 比赛任务 | 循线、越障、分岔、投递请求、返程与故障状态机、JSONL 回放 | `src/dog3588/mission.py`、`replay.py` |
 | 舵机 | LX824 帧校验、分片解析、位置回读、四路并行、目标邮箱/超时停止 | `src/dog3588/hardware/` |
 | IMU | WIT 标准 11 字节串口协议；MPU6050 I2C 六轴互补滤波 | `src/dog3588/hardware/imu.py` |
-| 视觉 | USB/V4L2 摄像头、HSV 颜色、黑线检测、循线速度指令 | `src/dog3588/vision.py` |
+| 视觉 | 独立采集进程、白赛道、五色色带、独立快递 ROI、帧过期处理 | `src/dog3588/vision.py` |
 | 命令 | 本机 UDP 速度接口、来源选择、过期归零、软件急停 | `src/dog3588/commands.py` |
 | 防护 | 标定检查、限位、变化率、姿态/数据年龄/推理超时 | `src/dog3588/safety.py` |
 | 部署 | SSH/SFTP 同步、独立虚拟环境、只读服务模板、测试 | `scripts/`、`deploy/`、`tests/` |
 
-相机与 IMU 型号尚未选定；驱动是明确协议的可选实现，不能认为任意 IMU 都兼容。四路通信和传感器尚未做实机接线验收。各关节零位/方向/限位故意留空；`--hardware --arm` 会拒绝未标定配置。
+相机使用 UVC/V4L2，ToF 驱动固定适配 VL53L5CX，IMU 数据来自 STM32。真实零位/方向由固件标定；主机限位、ToF 射线/外参及采样位置故意留空，`--hardware --arm` 拒绝未经验证的配置。
 
 ## 开始运行
 
@@ -46,7 +51,7 @@ dog3588 run --seconds 10 --log logs/mock.jsonl
 
 ## VNC 远程桌面自启动
 
-香橙派使用 `orangepi` 用户启动 TightVNC / XFCE 虚拟桌面，systemd 服务名为 `vncserver.service`。VNC 客户端填写 `192.168.1.102:1`，或在主机/端口分开的界面填写主机 `192.168.1.102`、端口 `5901`；分辨率为 `1024×768`、色深 24 位。连接密码已单独提供，不保存在仓库中。
+香橙派使用 `orangepi` 用户启动 TightVNC / XFCE 虚拟桌面，systemd 服务名为 `vncserver.service`。VNC 客户端填写 `192.168.0.102:1`，或在主机/端口分开的界面填写主机 `192.168.0.102`、端口 `5901`；分辨率为 `1024×768`、色深 24 位。连接密码已单独提供，不保存在仓库中。
 
 服务文件位于板端 `/etc/systemd/system/vncserver.service`，桌面启动脚本位于 `/home/orangepi/.vnc/xstartup`；对应模板保存在 `deploy/vncserver.service` 和 `deploy/vnc-xstartup`。虚拟桌面使用显示号 `:1`，有独立的 DBus 会话、Xauthority 和运行目录。
 
@@ -205,6 +210,21 @@ USB 摄像头无需占用 40 针；MIPI 摄像头接专用 CSI 连接器，也�
 配置后先执行 `dog3588 --config config/local.yaml doctor` 查看设备，再按下节分别测试单腿回读、IMU 和摄像头。完整接线验收与关节零位/方向/限位标定见 [接线与标定](docs/hardware.md)。
 
 ## 分开调试
+
+新增与 STM32 事务流程对应的非阻塞位置回读，详细字段与时序边界见 [舵机反馈状态机](docs/servo-feedback.md)。默认测试 10 秒；明确指定 `--seconds 0` 才持续运行，Ctrl+C 停止并释放串口。此命令独立于策略控制，不要与 `run --hardware` 或其他串口程序同时打开同一路设备。
+
+```bash
+# 左前腿：只查询 ID 1 → 2 → 3，终端每秒输出反馈快照
+dog3588 feedback-servos --bus fl --seconds 10 --log logs/feedback-fl.jsonl
+
+# 连续回读（前台运行，Ctrl+C 停止；不是开机自启）
+dog3588 feedback-servos --bus fl --seconds 0 --log logs/feedback-fl.jsonl
+
+# 四腿独立状态机，仅在四路接线与 ID 都核对后使用
+dog3588 feedback-servos --bus all --seconds 10 --log logs/feedback-all.jsonl
+```
+
+`feedback-servos` 使用 `config/robot.yaml` 的 `feedback` 时序：6 ms 最小查询间隔、发送/接收各 10 ms 超时、每次事务后 2 ms 静默、100 ms 数据年龄。一次只等待一个 ID；超时会拉长周期，不盲目以固定频率覆盖接收窗口。`raw_valid` 表示近期真实校验成功的原始反馈；`feedback_valid` 还要求关节标定已核实。全部超时的退出码为 1，不能作为成功验收。旧的 `probe-servos` 保留作固定轮数诊断，使用其原有阻塞串口实现，两者不能同时运行。
 
 ```bash
 # 无需关节弧度标定，设置 fl 真实串口，使用自动方向转接电路

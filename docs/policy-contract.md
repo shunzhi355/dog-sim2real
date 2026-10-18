@@ -1,5 +1,7 @@
 # Robot12 策略数据契约
 
+> 部署适配器现支持 280 和 320 维两种显式布局。下文的模型数值是当前随仓库携带的 280 维基线。320 维在原本体项后追加 `height_scan`（单帧 8 维、5 帧历史，切片 `[280:320]`），必须附带 `height_scan_contract` 且 ONNX 签名匹配。主机只在八点全部有效时推理，不把缺失数据补零；288 维布局拒绝。地形采样参考、导入方法见 [上位机部署指南](robot-deploy.md#训练契约) 与 [ToF 文档](tof.md)。
+
 配置源：`policies/robot12/training_env.yaml` 和 `training_agent.yaml`，部署机器可直接检查。`manifest.json` 是提炼后的运行契约。
 
 ## 张量与时间

@@ -20,7 +20,7 @@ class ObservationBuilder:
         self.phase = 0.0
 
     def build(self, joints: JointState, imu: ImuState, velocity: np.ndarray,
-              gait: np.ndarray) -> np.ndarray:
+              gait: np.ndarray, height_scan=None) -> np.ndarray:
         velocity, gait = np.asarray(velocity), np.asarray(gait)
         if (velocity.shape != (3,) or gait.shape != (7,)
                 or not np.isfinite(velocity).all() or not np.isfinite(gait).all()
@@ -41,6 +41,13 @@ class ObservationBuilder:
             "gait_parameters": gait,
             "gait_clock": np.sin(2 * math.pi * foot_phase) * moving,
         }
+        uses_height = any(t["name"] == "height_scan" for t in self.manifest["terms"])
+        if uses_height:
+            if height_scan is None:
+                raise ValueError("terrain policy requires valid height_scan; no zero fill")
+            values["height_scan"] = height_scan
+        elif height_scan is not None:
+            raise ValueError("280-dimensional blind actor does not accept height_scan")
         blocks = []
         for term in self.manifest["terms"]:
             value = np.asarray(values[term["name"]], dtype=np.float32).copy()

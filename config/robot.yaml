@@ -59,6 +59,14 @@ buses:
     quiet_after_timeout_s: 0.006
     direction:
       mode: auto
+# Independent query-only feedback-servos state-machine timing, matching STM32.
+# A timeout lengthens the cycle; it never overlaps a second query on this bus.
+feedback:
+  query_period_s: 0.006
+  tx_timeout_s: 0.010
+  rx_timeout_s: 0.010
+  quiet_s: 0.002
+  max_age_s: 0.100
 imu:
   driver: unset  # wit_serial or mpu6050_i2c; not auto-detected
   mount_verified: false

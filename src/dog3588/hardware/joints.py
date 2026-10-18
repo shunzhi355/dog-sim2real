@@ -120,8 +120,15 @@ class FourLegIO:
             self.groups.append((indices, worker))
 
     def start(self):
-        for _, worker in self.groups:
-            worker.start()
+        try:
+            for _, worker in self.groups:
+                worker.start()
+        except BaseException as exc:
+            try:
+                self.close()
+            except Exception as cleanup:
+                raise RuntimeError(f"leg startup failed: {exc}; cleanup: {cleanup}") from exc
+            raise
 
     def read(self):
         q, dq, stamps = np.zeros(12), np.zeros(12), np.zeros(12)
@@ -143,6 +150,8 @@ class FourLegIO:
             worker.request_stop()
         errors = []
         for _, worker in self.groups:
+            if worker.thread.ident is None:
+                continue
             try:
                 worker.join()
                 if worker.error:

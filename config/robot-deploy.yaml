@@ -1,0 +1,144 @@
+# Orange Pi 5 Max host profile. All verification flags require measured evidence.
+# robot.yaml remains the explicit legacy direct-LX824 commissioning profile.
+version: 1
+backend: stm32
+policy_manifest: ../policies/robot12/manifest.json
+command:
+  host: 127.0.0.1
+  port: 9871
+  source: manual
+  timeout_s: 0.3
+gait: [1.5, 0.575, 0.02, 0.0, 0.5, 0.5, 0.0]
+safety:
+  joint_timeout_s: 0.10
+  imu_timeout_s: 0.10
+  target_timeout_s: 0.08
+  max_tilt_rad: 0.35
+  max_target_speed_rad_s: 1.0
+  max_action_abs: 8.0
+  startup_pose_tolerance_rad: 0.25
+  startup_timeout_s: 35.0  # includes ToF firmware upload
+  max_loop_lag_s: 0.05
+bridge:
+  port: /dev/serial/by-id/REPLACE_WITH_STM32_LINK
+  # Matches the inspected firmware's current UART setting; 921600 needs BOTH ends changed/tested.
+  baudrate: 115200
+  verified: false
+  imu_mount_verified: false
+  joint_mapping_verified: false
+  target_timeout_s: 0.08
+  heartbeat_period_s: 0.10
+  read_timeout_s: 0.005
+  write_timeout_s: 0.02
+  telemetry_timeout_s: 0.10
+  arm_timeout_s: 0.08
+# IMU is collected by STM32 and decoded from its telemetry, already in body axes.
+imu:
+  driver: stm32
+  sensor_to_body: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+# No leg UART is owned by the host in this profile.
+buses: []
+tof:
+  enabled: true
+  driver: vl53l5cx_ctypes
+  i2c_bus: 2  # I2C2_M0: physical SDA=3, SCL=5; enable overlay before use
+  i2c_address: 0x29
+  frequency_hz: 15  # 8x8 mode, not the 4x4 60 Hz setting
+  poll_interval_s: 0.002
+  startup_timeout_s: 30.0
+  frame_timeout_s: 0.15
+  close_timeout_s: 2.0
+  measurement_latency_s: 0.0  # measure; data-ready stamp is not exposure time
+  imu_timeout_s: 0.15
+  max_skew_s: 0.03
+  frame_duration_s: 0.06666666666666667
+  max_rotation_rad: 0.10
+  max_tilt_rad: 0.35
+  min_distance_m: 0.02
+  max_distance_m: 2.0
+  min_height_m: -1.0
+  max_height_m: 0.5
+  valid_statuses: [5]
+  height_reference: body_origin
+  verified: false
+  rays_verified: false
+  mount_verified: false
+  sampling_verified: false
+  reference_verified: false
+  ray: null  # measured 64x3 unit rays, sensor optical +Z; no guessed nominal FOV
+  sensor_to_body: null  # measured proper 3x3 rotation
+  origin_body_m: null  # measured sensor origin in body coordinates
+  sample_xy_m: null  # exact 8x2 positions/order from the TRAINED actor contract
+  max_xy_error_m: null  # experimentally justified nearest-sample tolerance
+vision:
+  verified: false
+  source: /dev/video0  # inspect v4l2-ctl; prefer /dev/v4l/by-id/... when available
+  backend: v4l2
+  width: 640
+  height: 480
+  fps: 30
+  max_frame_age_s: 0.15
+  close_timeout_s: 0.5
+  line:
+    roi_top: 0.55
+    hsv_low: [0, 0, 150]  # white track on black surroundings
+    hsv_high: [179, 80, 255]
+    min_area_px: 150
+  follow:
+    forward_m_s: 0.12
+    max_yaw_rad_s: 0.4
+    lateral_gain: 0.5
+    heading_gain: 0.4
+  semantic_rois:
+    track: [0.0, 0.45, 1.0, 1.0]
+    parcel: null  # configure only if the loaded ball is actually visible
+  colour_filter:
+    min_area_px: 200
+    min_width_fraction: 0.35
+    min_aspect_ratio: 2.5
+    min_confidence: 0.6
+  parcel_filter:
+    min_area_px: 80
+    min_confidence: 0.5
+  colours:
+    red: [[[0, 100, 181], [10, 255, 255]], [[170, 100, 181], [179, 255, 255]]]
+    green: [[[35, 80, 60], [85, 255, 255]]]
+    blue: [[[95, 100, 60], [130, 255, 255]]]
+    yellow: [[[20, 100, 100], [34, 255, 255]]]
+    brown: [[[0, 80, 30], [19, 230, 180]]]  # RGB(165,42,42); disjoint red/brown V ranges
+autonomy:
+  require_terrain_policy: true
+  stability:
+    max_tilt_rad: 0.1
+    max_omega_rad_s: 0.1
+    max_joint_speed_rad_s: 0.2
+mission:
+  parcel_colour: null  # yellow/brown if known, else a calibrated parcel ROI must see it
+  route_map: {}  # parcel -> {red|green|red+green: left|right|straight}; no guessed route
+  return_route_map: {}
+  forward_m_s: 0.12
+  approach_m_s: 0.06
+  cross_m_s: 0.06
+  dock_m_s: 0.03
+  turn_rad_s: 0.3
+  stable_duration_s: 3.0
+  max_vision_age_s: 0.15
+  max_tof_age_s: 0.15
+  debounce_frames: 2
+  release_frames: 2
+  reacquire_frames: 3
+# Policy order is canonical. STM32 owns raw zeros, signs, IDs and servo conversion.
+# Host limits must match the actually calibrated firmware limits before --arm.
+joints:
+  - {name: fl_hip_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: fl_upper_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: fl_input_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: fr_hip_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: fr_upper_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: fr_input_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rl_hip_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rl_upper_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rl_input_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rr_hip_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rr_upper_joint, verified: false, min_rad: null, max_rad: null}
+  - {name: rr_input_joint, verified: false, min_rad: null, max_rad: null}

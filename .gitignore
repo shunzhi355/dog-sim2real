@@ -9,4 +9,5 @@ logs/
 config/local*.yaml
 *.npz
 *.mp4
+tmp/mission-demo*/
 

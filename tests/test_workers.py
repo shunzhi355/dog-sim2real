@@ -1,6 +1,8 @@
 import time
 
-from dog3588.hardware.joints import LegWorker
+import pytest
+
+from dog3588.hardware.joints import LegWorker, FourLegIO
 from dog3588.hardware.lx824 import FrameParser, LOAD_WRITE, MOVE_TIME_WRITE
 
 
@@ -38,4 +40,19 @@ def test_shadow_does_not_load_move_or_stop(cfg, calibrations):
     worker.request_stop()
     worker.join()
     assert bus.writes == [] and bus.stops == [] and bus.closed
+
+
+def test_partial_leg_start_failure_rolls_back_existing_worker(cfg, calibrations, monkeypatch):
+    io = FourLegIO(cfg, calibrations, armed=False, control_hz=50)
+    bus = FakeBus({})
+    first = io.groups[0][1]
+    first.bus_factory = lambda _: bus
+    def fail_start():
+        raise OSError('cannot start second worker')
+    monkeypatch.setattr(io.groups[1][1], 'start', fail_start)
+    with pytest.raises(OSError, match='second worker'):
+        io.start()
+    assert bus.closed and not first.thread.is_alive()
+    assert bus.writes == [] and bus.stops == []
+    io.close()  # unstarted workers do not cause join-before-start failures
 
