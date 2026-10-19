@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "name": "prone",
+  "display_name": "趴姿",
+  "purpose": "recorded_pose_reference",
+  "user_confirmed": true,
+  "captured_at": "2026-10-19T14:58:30+08:00",
+  "selection": "latest_valid_snapshot_not_median",
+  "units": "servo_raw_count",
+  "servo_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "joint_names": [
+    "fl_hip_joint",
+    "fl_upper_joint",
+    "fl_input_joint",
+    "fr_hip_joint",
+    "fr_upper_joint",
+    "fr_input_joint",
+    "rl_hip_joint",
+    "rl_upper_joint",
+    "rl_input_joint",
+    "rr_hip_joint",
+    "rr_upper_joint",
+    "rr_input_joint"
+  ],
+  "raw_positions": [
+    765,
+    664,
+    482,
+    109,
+    370,
+    409,
+    510,
+    739,
+    606,
+    91,
+    112,
+    354
+  ],
+  "model_joint_positions_rad": null,
+  "calibration_zero": false,
+  "trajectory_validated": false,
+  "source_report": "logs/prone-pose-20261019-145830.json",
+  "source_report_sha256": "820ad286b4064eaaef252a161894936184de3e2aee36ead3edbac380bc7084cd",
+  "capture_summary": {
+    "duration_s": 5.002669500000138,
+    "joint_frames": 100,
+    "parser_rejected": 0,
+    "raw_statistics": [
+      {
+        "id": 1,
+        "valid_frames": 100,
+        "raw_min": 764,
+        "raw_max": 768,
+        "raw_median": 765.5
+      },
+      {
+        "id": 2,
+        "valid_frames": 100,
+        "raw_min": 656,
+        "raw_max": 667,
+        "raw_median": 664.0
+      },
+      {
+        "id": 3,
+        "valid_frames": 100,
+        "raw_min": 479,
+        "raw_max": 499,
+        "raw_median": 482.0
+      },
+      {
+        "id": 4,
+        "valid_frames": 100,
+        "raw_min": 82,
+        "raw_max": 109,
+        "raw_median": 86.0
+      },
+      {
+        "id": 5,
+        "valid_frames": 100,
+        "raw_min": 370,
+        "raw_max": 371,
+        "raw_median": 370.0
+      },
+      {
+        "id": 6,
+        "valid_frames": 100,
+        "raw_min": 409,
+        "raw_max": 412,
+        "raw_median": 410.0
+      },
+      {
+        "id": 7,
+        "valid_frames": 100,
+        "raw_min": 510,
+        "raw_max": 510,
+        "raw_median": 510.0
+      },
+      {
+        "id": 8,
+        "valid_frames": 100,
+        "raw_min": 739,
+        "raw_max": 740,
+        "raw_median": 739.0
+      },
+      {
+        "id": 9,
+        "valid_frames": 100,
+        "raw_min": 606,
+        "raw_max": 607,
+        "raw_median": 606.0
+      },
+      {
+        "id": 10,
+        "valid_frames": 100,
+        "raw_min": 91,
+        "raw_max": 92,
+        "raw_median": 91.0
+      },
+      {
+        "id": 11,
+        "valid_frames": 100,
+        "raw_min": 112,
+        "raw_max": 113,
+        "raw_median": 112.0
+      },
+      {
+        "id": 12,
+        "valid_frames": 100,
+        "raw_min": 353,
+        "raw_max": 354,
+        "raw_median": 354.0
+      }
+    ]
+  },
+  "note": "用户确认将最后一帧记为趴姿。采样期间部分关节有变化，保留范围；此文件不自动加载为策略零位或下发运动目标。"
+}

@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "file": "policy.onnx",
+  "sha256": "9808c1577e2a128008b5c2d3d93f8d80b626b203cd1e905af0f2ab4f3c9e13ad",
+  "robot": "Robot12",
+  "control_hz": 50.0,
+  "history_layout": "term_major_oldest_first",
+  "history_length": 5,
+  "history_reset": "repeat_first_sample",
+  "observation_size": 280,
+  "action_size": 12,
+  "terms": [
+    {
+      "name": "base_ang_vel",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "projected_gravity",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "velocity_commands",
+      "size": 3,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "joint_pos",
+      "size": 12,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "joint_vel",
+      "size": 12,
+      "scale": 0.05,
+      "clip": null
+    },
+    {
+      "name": "actions",
+      "size": 12,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "gait_parameters",
+      "size": 7,
+      "scale": 1.0,
+      "clip": null
+    },
+    {
+      "name": "gait_clock",
+      "size": 4,
+      "scale": 1.0,
+      "clip": null
+    }
+  ],
+  "joint_names": [
+    "fl_hip_joint",
+    "fl_upper_joint",
+    "fl_input_joint",
+    "fr_hip_joint",
+    "fr_upper_joint",
+    "fr_input_joint",
+    "rl_hip_joint",
+    "rl_upper_joint",
+    "rl_input_joint",
+    "rr_hip_joint",
+    "rr_upper_joint",
+    "rr_input_joint"
+  ],
+  "action_scale": 0.25,
+  "default_joint_pos": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "default_joint_vel": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "gait": {
+    "frequency_hz": [
+      1.0,
+      2.0
+    ],
+    "stance_fraction": [
+      0.55,
+      0.6
+    ],
+    "clearance_m": [
+      0.015,
+      0.025
+    ],
+    "phase_offsets": [
+      0.0,
+      0.5,
+      0.5,
+      0.0
+    ],
+    "yaw_threshold_rad_s": 0.02
+  },
+  "velocity_ranges": {
+    "lin_vel_x": [
+      0.1,
+      0.3
+    ],
+    "lin_vel_y": [
+      0.0,
+      0.0
+    ],
+    "ang_vel_z": [
+      -0.4,
+      0.4
+    ]
+  },
+  "normalization": "exported_graph_only",
+  "deployment_noise": false,
+  "training": {
+    "source": "third-party pretrained Robot12 export supplied by user",
+    "source_export": "model_4497_export(1)/policy.onnx",
+    "source_graph_sha256": "8c1686a8ed40b30b374eea2b5f86cd69570d571e1ca0647c575f26e6b8815352",
+    "source_weights_sha256": "aa3be9d6ed7a695895d0ec73ad9ccf5eff70470cc01391f021919ad930b817e8",
+    "checkpoint": "model_4497 (directory label; checkpoint metadata unavailable)",
+    "contract_verified": false,
+    "contract_basis": "Assumed existing robot-lab 280-dimensional gait/forward contract, per user instruction to use supplied policy",
+    "reference_manifest": "policies/robot12/manifest.json",
+    "reference_manifest_sha256": "6901c166b29fb851b299dd98e5b1c87cbea889921b76fdb726167ddbaffdf56c",
+    "note": "No original training YAML supplied. Adopted preprocessing, joint order, action scale, gait and command ranges are deployment assumptions, not recovered training metadata."
+  }
+}

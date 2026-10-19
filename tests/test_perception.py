@@ -6,6 +6,7 @@ import os
 from queue import Queue
 import threading
 import time
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -196,13 +197,15 @@ def test_read_freshness_never_restamps_and_clears_semantics(camera_cfg, monkeypa
     camera._results = Queue(maxsize=1)
     sample = VisionState(10., {"found": True, "error": 0., "heading": 0., "confidence": 1.},
                          [{"colour": "yellow"}], {"home"}, "brown")
-    monkeypatch.setattr(vision.time, "monotonic", lambda: 10.05)
+    # Freeze only the camera clock. Linux multiprocessing also uses time.monotonic
+    # to finish zero-timeout polls; freezing that global clock can hang get_nowait.
+    monkeypatch.setattr(vision, "time", SimpleNamespace(monotonic=lambda: 10.05))
     camera._results.put_nowait(sample)
     first = camera.read()
     assert first.stamp == 10. and first.parcel_colour == "brown"
     first.line["found"] = False
     assert camera.read().line["found"]  # returned snapshot cannot mutate the cache
-    monkeypatch.setattr(vision.time, "monotonic", lambda: 10.3)
+    monkeypatch.setattr(vision, "time", SimpleNamespace(monotonic=lambda: 10.3))
     stale = camera.read()
     assert stale.stamp == 10. and not stale.line["found"]
     assert stale.colours == [] and not stale.events and stale.parcel_colour is None
@@ -236,7 +239,7 @@ def test_worker_stamps_before_read_and_processing(camera_cfg, monkeypatch,
 
     capture = Capture()
     monkeypatch.setattr(cv2, "VideoCapture", lambda *_: capture)
-    monkeypatch.setattr(vision.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(vision, "time", SimpleNamespace(monotonic=lambda: clock[0]))
     real_detect = PerceptionDetector.detect
 
     def slow_detect(self, frame, stamp):
