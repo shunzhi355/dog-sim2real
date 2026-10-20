@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "name": "standing",
+  "display_name": "静止站立",
+  "purpose": "recorded_pose_reference",
+  "user_confirmed": true,
+  "captured_at": "2026-10-19T21:35:12.716032+08:00",
+  "selection": "latest_valid_snapshot_not_median",
+  "units": "servo_raw_count",
+  "servo_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "joint_names": [
+    "fl_hip_joint",
+    "fl_upper_joint",
+    "fl_input_joint",
+    "fr_hip_joint",
+    "fr_upper_joint",
+    "fr_input_joint",
+    "rl_hip_joint",
+    "rl_upper_joint",
+    "rl_input_joint",
+    "rr_hip_joint",
+    "rr_upper_joint",
+    "rr_input_joint"
+  ],
+  "raw_positions": [
+    468,
+    280,
+    382,
+    535,
+    724,
+    607,
+    500,
+    193,
+    357,
+    499,
+    803,
+    663
+  ],
+  "model_joint_positions_rad": null,
+  "model_positions_verified": false,
+  "calibration_zero": false,
+  "trajectory_validated": false,
+  "source_report": "logs/standing-pose-20261019-213512.json",
+  "source_report_sha256": "2cc30d19341097ef819e41ceafc5d5c112fa068172c956a2ce85c6c41c7d8a32",
+  "capture_summary": {
+    "duration_s": 5.027854644999934,
+    "joint_frames": 99,
+    "parser_rejected": 1,
+    "parser_timeouts": 0,
+    "transmitted_bytes": 0,
+    "raw_statistics": [
+      {
+        "id": 1,
+        "valid_frames": 99,
+        "raw_min": 468,
+        "raw_max": 470,
+        "raw_median": 469
+      },
+      {
+        "id": 2,
+        "valid_frames": 99,
+        "raw_min": 279,
+        "raw_max": 282,
+        "raw_median": 281
+      },
+      {
+        "id": 3,
+        "valid_frames": 99,
+        "raw_min": 382,
+        "raw_max": 383,
+        "raw_median": 382
+      },
+      {
+        "id": 4,
+        "valid_frames": 99,
+        "raw_min": 534,
+        "raw_max": 535,
+        "raw_median": 535
+      },
+      {
+        "id": 5,
+        "valid_frames": 99,
+        "raw_min": 723,
+        "raw_max": 725,
+        "raw_median": 724
+      },
+      {
+        "id": 6,
+        "valid_frames": 99,
+        "raw_min": 607,
+        "raw_max": 607,
+        "raw_median": 607
+      },
+      {
+        "id": 7,
+        "valid_frames": 99,
+        "raw_min": 499,
+        "raw_max": 501,
+        "raw_median": 500
+      },
+      {
+        "id": 8,
+        "valid_frames": 99,
+        "raw_min": 192,
+        "raw_max": 194,
+        "raw_median": 193
+      },
+      {
+        "id": 9,
+        "valid_frames": 99,
+        "raw_min": 356,
+        "raw_max": 359,
+        "raw_median": 357
+      },
+      {
+        "id": 10,
+        "valid_frames": 99,
+        "raw_min": 499,
+        "raw_max": 499,
+        "raw_median": 499
+      },
+      {
+        "id": 11,
+        "valid_frames": 99,
+        "raw_min": 802,
+        "raw_max": 804,
+        "raw_median": 803
+      },
+      {
+        "id": 12,
+        "valid_frames": 99,
+        "raw_min": 663,
+        "raw_max": 663,
+        "raw_median": 663
+      }
+    ],
+    "first_fault": {
+      "faults": 1,
+      "armed_mask": 0,
+      "configured_mask": 0,
+      "rx_overflow": 0,
+      "uart_errors": 0,
+      "rejected_frames": 0,
+      "rejected_commands": 0,
+      "tx_dropped": 0,
+      "buses": {
+        "FL": {
+          "success": 103734,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "FR": {
+          "success": 103734,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "RL": {
+          "success": 103734,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "RR": {
+          "success": 103734,
+          "timeouts": 0,
+          "transport_errors": 0
+        }
+      }
+    },
+    "last_fault": {
+      "faults": 1,
+      "armed_mask": 0,
+      "configured_mask": 0,
+      "rx_overflow": 0,
+      "uart_errors": 0,
+      "rejected_frames": 0,
+      "rejected_commands": 0,
+      "tx_dropped": 0,
+      "buses": {
+        "FL": {
+          "success": 104534,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "FR": {
+          "success": 104534,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "RL": {
+          "success": 104534,
+          "timeouts": 0,
+          "transport_errors": 0
+        },
+        "RR": {
+          "success": 104534,
+          "timeouts": 0,
+          "transport_errors": 0
+        }
+      }
+    }
+  },
+  "note": "用户将当前实物姿态指定为静止站立，记录本次最后一帧的12轴有效原始计数。5秒内各轴波动0至3计数，四路舵机总线无超时；主机解析器拒绝1帧，保留诊断信息。本文件不自动加载为策略零位或下发运动目标，尚未验证与模型S0一致。"
+}

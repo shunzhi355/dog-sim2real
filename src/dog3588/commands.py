@@ -25,6 +25,7 @@ class CommandReceiver:
         self.cfg, self.ranges = config, ranges
         self.velocity = np.zeros(3)
         self.stamp = 0.0
+        self.velocity_not_before = 0.0
         self.estop = False
         self.invalid_packets = 0
         self.last_sender_stamp = {"manual": 0., "vision": 0.}
@@ -56,7 +57,7 @@ class CommandReceiver:
                 raise ValueError("bad velocity/estop")
             self.last_sender_stamp[source] = stamp
             self.estop |= msg["estop"]
-            if source == self.cfg["source"]:
+            if source == self.cfg["source"] and stamp > self.velocity_not_before:
                 # Permit zero for standing, and the trained forward/yaw envelope.
                 low = [min(0, self.ranges[k][0]) for k in ("lin_vel_x", "lin_vel_y", "ang_vel_z")]
                 high = [max(0, self.ranges[k][1]) for k in ("lin_vel_x", "lin_vel_y", "ang_vel_z")]
@@ -81,4 +82,11 @@ class CommandReceiver:
     def close(self):
         if self.sock is not None:
             self.sock.close()
+
+    def discard_velocity(self, now):
+        """Require a new command after standing; retain the latched emergency stop."""
+        self.velocity[:] = 0
+        self.stamp = 0.
+        # Filter only motion: a valid, delayed ESTOP must still latch.
+        self.velocity_not_before = max(self.velocity_not_before, now)
 

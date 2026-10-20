@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "name": "standing-zero",
+  "display_name": "用户指定的当前站姿零位",
+  "purpose": "user_defined_joint_zero_reference",
+  "user_confirmed": true,
+  "captured_at": "2026-10-20T11:49:18.178428+08:00",
+  "selection": "latest_valid_snapshot_not_median",
+  "units": "servo_raw_count",
+  "servo_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "joint_names": [
+    "fl_hip_joint",
+    "fl_upper_joint",
+    "fl_input_joint",
+    "fr_hip_joint",
+    "fr_upper_joint",
+    "fr_input_joint",
+    "rl_hip_joint",
+    "rl_upper_joint",
+    "rl_input_joint",
+    "rr_hip_joint",
+    "rr_upper_joint",
+    "rr_input_joint"
+  ],
+  "raw_positions": [
+    466,
+    283,
+    373,
+    533,
+    724,
+    609,
+    501,
+    192,
+    354,
+    499,
+    805,
+    664
+  ],
+  "model_joint_positions_rad": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "model_positions_verified": false,
+  "calibration_zero": true,
+  "joint_calibration_complete": false,
+  "trajectory_validated": false,
+  "source_report": "logs/standing-zero-capture-20261020-114918.json",
+  "source_report_sha256": "59b750c04c6d2d39715b594200632a6b5ad62d5525e2eed57b4e1415d4ce5fbe",
+  "capture_summary": {
+    "captured_at": "2026-10-20T11:49:18.178428+08:00",
+    "duration_s": 3.0195323419998203,
+    "valid_snapshots": 60,
+    "raw_positions": [
+      466,
+      283,
+      373,
+      533,
+      724,
+      609,
+      501,
+      192,
+      354,
+      499,
+      805,
+      664
+    ],
+    "raw_min": [
+      466,
+      283,
+      373,
+      533,
+      723,
+      609,
+      501,
+      192,
+      351,
+      499,
+      805,
+      663
+    ],
+    "raw_max": [
+      467,
+      283,
+      378,
+      534,
+      724,
+      610,
+      502,
+      193,
+      355,
+      499,
+      806,
+      664
+    ],
+    "parser_rejected": 0,
+    "transmitted_bytes": 0,
+    "fault_last": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      399408,
+      0,
+      0,
+      399406,
+      1,
+      0,
+      399408,
+      0,
+      0,
+      399408,
+      0,
+      0
+    ]
+  },
+  "note": "按用户指示，将本次站姿定义为12轴参考q=0；不是舵机EEPROM偏置写入。12轴正反方向已由用户确认，角度比例已由用户确认，机械限位尚未实测。未验证第三方训练几何零位一致性。本文件不自动开启策略或改变原standing.json初始化目标。 用户要求直接测试策略，采用显式软件测试边界；此边界不代表实测机械限位。",
+  "direction_signs": [
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    1,
+    -1,
+    -1
+  ],
+  "direction_signs_verified": true,
+  "direction_confirmation": {
+    "source": "user",
+    "date": "2026-10-20",
+    "definition": "direction_sign = +1 when increasing raw count increases model joint angle; otherwise -1"
+  },
+  "position_units_per_rad": 238.73241463784302,
+  "position_scale_verified": true,
+  "position_scale_confirmation": {
+    "source": "user",
+    "date": "2026-10-20",
+    "servo_model": "LX-824",
+    "raw_span": 1000,
+    "angle_span_deg": 240,
+    "direct_drive": true
+  },
+  "mechanical_limits_verified": false,
+  "mechanical_raw_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "mechanical_raw_max": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "policy_test_bounds_rad": [
+    [
+      -0.23889194136672387,
+      0.27897997262346863
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.23889194136672387,
+      0.27897997262346863
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.2615266801035253,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.2615266801035253,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ],
+    [
+      -0.35,
+      0.35
+    ]
+  ],
+  "policy_test_bounds_basis": {
+    "user_authorized_test": true,
+    "mechanical_limits_measured": false,
+    "max_deviation_rad": 0.35,
+    "intersection": "local test envelope, URDF bounded axes, servo counts 1..999",
+    "urdf_sha256": "d9f4a4f2fde07c5c41eb634ff2bcffa0e83ea6ba72b623d2ba202bfdbed1a6f6"
+  }
+}

@@ -330,7 +330,7 @@ def test_lifecycle_probe_facade_shadow_and_partial_writes(rig):
     b.start()
     b.imu.start()
     assert port.options[1] == 115200
-    assert port.options[2] == {"timeout": .005, "write_timeout": .02}
+    assert port.options[2] == {"timeout": .005, "write_timeout": .02, "exclusive": True}
     initial = b.read()
     initial.position[:] = 99
     assert b.read().position[0] != 99

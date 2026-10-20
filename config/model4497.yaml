@@ -11,6 +11,23 @@ command:
   source: manual
   timeout_s: 0.3
 gait: [1.5, 0.575, 0.02, 0.0, 0.5, 0.5, 0.0]
+startup:
+  enabled: true  # --hardware --arm: prone -> stand -> policy; shadow/mock never move
+  prone_pose: poses/prone.json
+  standing_pose: poses/standing.json
+  trajectory_verified: false  # set only after physical path commissioning
+  initial_hold_s: 0.5
+  rise_duration_s: 4.0  # minimum; automatically lengthened to respect speed
+  max_rise_duration_s: 30.0
+  max_speed_rad_s: 0.35
+  prone_tolerance_rad: 0.12
+  tracking_tolerance_rad: 0.25
+  standing_tolerance_rad: 0.04
+  settle_duration_s: 1.0
+  settle_timeout_s: 5.0
+  settle_speed_rad_s: 0.15
+  settle_omega_rad_s: 0.15
+  settle_tilt_rad: 0.12
 safety:
   joint_timeout_s: 0.10
   imu_timeout_s: 0.10
@@ -34,9 +51,12 @@ bridge:
   write_timeout_s: 0.02
   telemetry_timeout_s: 0.10
   arm_timeout_s: 0.08
-# IMU is collected by STM32 and decoded from its telemetry, already in body axes.
+# IMU connects directly to Orange Pi UART3; STM32 handles the servo buses.
 imu:
-  driver: stm32
+  driver: hipnuc_serial
+  serial_port: /dev/ttyS3
+  baudrate: 460800
+  mount_verified: false
   sensor_to_body: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 # No leg UART is owned by the host in this profile.
 buses: []

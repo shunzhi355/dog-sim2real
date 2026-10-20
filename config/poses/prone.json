@@ -50,6 +50,7 @@
     354
   ],
   "model_joint_positions_rad": null,
+  "model_positions_verified": false,
   "calibration_zero": false,
   "trajectory_validated": false,
   "source_report": "logs/prone-pose-20261019-145830.json",

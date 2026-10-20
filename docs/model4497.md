@@ -46,7 +46,30 @@ cp config/model4497.yaml config/local-model4497.yaml
 ```
 
 在 `config/local-model4497.yaml` 填入实际 `bridge.port`，波特率与 STM32 一致。
-STM32 必须已启用 RobotLink，并连续上报关节角/速度和机身 IMU。
+STM32 必须已启用 RobotLink。`model4497-test.yaml` 使用原始计数接口：
+香橙派按标定计算关节角/速度和舵机目标计数，STM32 上报原始位置并执行计数目标。
+旧的 radians 配置仍要求 MCU 上报标定后的关节角/速度。
+IMU 由香橙派直接通过 `/dev/ttyS3`、460800 接收，使用 `hipnuc_serial` 驱动；
+支持 HI83/HI91 混合输出，策略和桥接看门狗共用同一份主机 IMU 状态。
+实机安装方向为 X 前、Y 左、Z 上，`sensor_to_body` 使用单位矩阵；
+该实机的 `config/local-model4497.yaml` 标记 `imu.mount_verified: true`。
+
+2026-10-20 按用户要求记录当前站姿为参考零位，见
+[`config/poses/standing-zero.json`](../config/poses/standing-zero.json)。
+这是用户定义的参考 `q=0`，不写入舵机 EEPROM，也不自动认定与第三方训练几何一致。
+计数到角度仍需要方向和比例：`q = direction * (raw - raw_zero) / units_per_rad`。
+用户已确认 ID 1～12 的方向为 `[+1,+1,+1,-1,-1,-1,-1,+1,+1,+1,-1,-1]`，
+记录在零位文件的 `direction_signs` 中。相邻 MCU 工程 `Robot/Src/robot_config.c`
+已填入该站姿零位和方向。用户确认 LX-824 为 0～1000 对应 0～240°，且直连主动轴，
+换算比例为 `238.732414637843 count/rad`（每计数 0.24°），已写入 MCU 配置。
+机械限位尚未实测，记录中的机械上下限保持 `null`。用户要求直接测试后，
+新增 `config/model4497-test.yaml`：采用站姿附近 ±0.35 rad 软件测试边界，
+再与 URDF 髋轴限位及舵机行程求交；不将其标记为实测机械限位。
+当前测试已改为香橙派完成换算：`bridge.target_units: servo_raw_count`，
+`bridge.calibration_pose: poses/standing-zero.json`。使用现有 pose-v1 的 CAPS/ARM/TARGET
+接口，不要求为角度标定重新烧录 MCU；准备过的带标定固件也兼容此计数模式。
+该配置从已站立位置开始，不运行旧的低趴轨迹；先用独立位置初始化回到
+`config/poses/standing-zero.json`，再检查反馈和运行策略。详见 [策略测试状态](policy-test.md)。
 
 ```bash
 .venv/bin/python -m dog3588 --config config/local-model4497.yaml probe-link --seconds 10
@@ -56,6 +79,10 @@ STM32 必须已启用 RobotLink，并连续上报关节角/速度和机身 IMU�
 第二条使用真实反馈进行影子推理，不下发关节动作。完成关节零位、方向、顺序、限位和
 IMU 机身坐标核对后，填写各关节实际限位和配置中的对应 `verified` 标志。
 不可仅为消除报错而将标志改为 true。
+
+实机启动已接入[低趴 → 站立 → 策略流程](startup.md)。还需补齐趴姿/站姿的已标定模型角度，
+验证起身轨迹；原始计数记录不等于策略零位。`startup.enabled: true` 时，
+先核对低趴位置、平滑起身并站稳，再运行下面指定的 15 秒策略（起身时间另计）。
 
 有限时长实机执行（会驱动关节；首轮在支撑条件下验证）：
 
@@ -78,9 +105,12 @@ IMU 机身坐标核对后，填写各关节实际限位和配置中的对应 `ve
 `/home/orangepi/Desktop`：
 
 - **Robot12 策略启动**：双击后显示菜单，回车或选择 1 运行 10 秒模型测试；
-  2 为真实反馈推理，3 为 15 秒实机运行，4 为前进命令，5 为急停，6 为链路检查，
+  2 为真实反馈推理，3 为低趴起身后运行 15 秒策略，4 为前进命令，5 为急停，6 为链路检查，
   7 为香橙派直接读取 ToF 原始距离（接线及 I²C 启用后使用，不依赖 STM32）。
 - **Robot12 急停**：独立发送锁存急停命令。
+
+菜单 **8** 是[独立站姿初始化](initialize-pose.md)：只使能并移动到 `standing.json`，
+不运行策略、不要求模型角度标定或 IMU；需先烧录配套 pose-v1 固件。
 
 入口使用 `config/local-model4497.yaml`；再次安装不会覆盖已存在的本地配置。
 控制实例使用文件锁避免多个桌面实例同时打开链路。要在运行期间发送速度命令，

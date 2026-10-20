@@ -1,4 +1,4 @@
-"""Replaceable WIT serial and MPU6050 I2C providers; both output the same body-frame state."""
+"""Host IMU providers producing angular velocity and projected body gravity."""
 
 import math
 import struct
@@ -85,7 +85,7 @@ class ThreadedImu:
 
     def _run(self):
         try:
-            if self.cfg["driver"] == "wit_serial":
+            if self.cfg["driver"] in ("wit_serial", "hipnuc_serial"):
                 self._serial()
             elif self.cfg["driver"] == "mpu6050_i2c":
                 self._i2c()
@@ -98,7 +98,11 @@ class ThreadedImu:
     def _serial(self):
         import serial
 
-        parser = WitParser(self.rotation)
+        if self.cfg["driver"] == "hipnuc_serial":
+            from .hipnuc import HipnucParser
+            parser = HipnucParser(self.rotation)
+        else:
+            parser = WitParser(self.rotation)
         with serial.Serial(self.cfg["serial_port"], self.cfg["baudrate"], timeout=0.02,
                            exclusive=True) as port:
             port.reset_input_buffer()

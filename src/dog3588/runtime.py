@@ -14,6 +14,7 @@ from .hardware.joints import FourLegIO, MockJoints
 from .observation import ObservationBuilder
 from .policy import OnnxPolicy, load_manifest
 from .safety import SafetyFault, SafetyGuard
+from .startup import execute_startup, load_startup_plan
 
 
 def validate_gait(values, manifest):
@@ -43,6 +44,7 @@ def run(cfg, *, hardware=False, arm=False, autonomous=False, seconds=10., log_pa
         raise ValueError("backend must be stm32 or direct")
     validator = validate_bridge_hardware if backend == "stm32" else validate_hardware
     calibrations = validator(cfg, manifest["joint_names"], arm=arm) if hardware else None
+    startup_plan = load_startup_plan(cfg, manifest, calibrations) if arm else None
     policy = OnnxPolicy(manifest)
     builder = ObservationBuilder(manifest)
     guard = SafetyGuard(cfg["safety"], manifest, calibrations)
@@ -50,8 +52,15 @@ def run(cfg, *, hardware=False, arm=False, autonomous=False, seconds=10., log_pa
     if hardware and backend == "stm32":
         from .transport import STM32Bridge
         from .deployment import BridgeImu
-        joints = STM32Bridge(cfg['bridge'], armed=arm)
-        imu = BridgeImu(joints)
+        if cfg['imu']['driver'] == 'stm32':
+            joints = STM32Bridge(cfg['bridge'], armed=arm)
+            imu = BridgeImu(joints)
+        else:
+            imu = ThreadedImu(cfg['imu'])
+            bridge_cfg = dict(cfg['bridge'], imu_mount_verified=cfg['imu'].get('mount_verified', False))
+            bridge_cfg['max_raw_speed_rad_s'] = cfg['safety']['max_target_speed_rad_s']
+            joints = STM32Bridge(bridge_cfg, armed=arm, imu_reader=imu.read,
+                                 raw_calibrations=calibrations if bridge_cfg.get('target_units') == 'servo_raw_count' else None)
     elif hardware:
         joints = FourLegIO(cfg, calibrations, armed=arm, control_hz=manifest["control_hz"])
         imu = ThreadedImu(cfg['imu'])
@@ -76,6 +85,13 @@ def run(cfg, *, hardware=False, arm=False, autonomous=False, seconds=10., log_pa
     started_joints = started_imu = started_perception = False
     ticks, times, skipped_deadlines = 0, [], 0
     began = None
+
+    def emit_startup(record):
+        line = json.dumps(record, allow_nan=False)
+        print(line, flush=True)
+        if logger:
+            logger.write(line + "\n")
+
     try:
         if log_path:
             path = Path(log_path)
@@ -95,6 +111,9 @@ def run(cfg, *, hardware=False, arm=False, autonomous=False, seconds=10., log_pa
                 return {"ticks": 0, "stopped_during_startup": True}
             state, orientation = joints.read(), imu.read()
             now = time.monotonic()
+            commands.read(now)
+            if commands.estop:
+                raise SafetyFault("latched software emergency stop during preflight")
             try:
                 guard.check_state(state, orientation, now)
                 if perception:
@@ -105,9 +124,15 @@ def run(cfg, *, hardware=False, arm=False, autonomous=False, seconds=10., log_pa
                 if now >= deadline:
                     raise
                 time.sleep(period)
-        guard.initialise(state, armed=arm)
-        # All preflight checks complete before any motor receives LOAD or MOVE.
-        began = next_tick = time.monotonic()
+        if startup_plan is not None:
+            execute_startup(startup_plan, joints, imu, guard, commands, period=period,
+                            stopping=lambda: stopping, perception=perception, emit=emit_startup)
+            builder.reset()
+        else:
+            guard.initialise(state, armed=arm)
+        # Policy duration starts after standing, with one control period for handoff.
+        began = time.monotonic()
+        next_tick = began + period if startup_plan is not None else began
         last_status = began - 1
         print(json.dumps({"event": "started", "mode": "armed" if arm else "shadow" if hardware else "mock",
                           "backend": backend, "autonomous": autonomous,

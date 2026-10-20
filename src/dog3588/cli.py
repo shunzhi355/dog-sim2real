@@ -28,6 +28,12 @@ def main(argv=None):
     run.add_argument("--autonomous", action="store_true", help="camera/ToF mission supervisor; requires hardware and verified configuration")
     run.add_argument("--seconds", type=float, default=10.)
     run.add_argument("--log", type=Path)
+    init = subs.add_parser('initialize-pose', help='standalone saved servo-position initialization; no policy or IMU')
+    init.add_argument('--pose', type=Path, help='defaults to configured standing_pose')
+    init.add_argument('--arm', action='store_true', help='enable and move servos; otherwise only check support/feedback')
+    init.add_argument('--seconds', type=float, default=5., help='minimum move duration')
+    init.add_argument('--max-speed', type=float, default=40., help='servo counts per second, 1..60')
+    init.add_argument('--log', type=Path)
     probe = subs.add_parser("probe-servos", help="query raw positions only; never LOAD/MOVE")
     probe.add_argument("--bus", required=True)
     probe.add_argument("--rounds", type=int, default=10)
@@ -77,6 +83,13 @@ def main(argv=None):
                         "host_tof_enabled": cfg.get('tof', {}).get('enabled', False)})
         elif args.operation == "benchmark":
             print_json(OnnxPolicy(load_manifest(cfg["policy_manifest"])).benchmark(args.count))
+        elif args.operation == 'initialize-pose':
+            from .initialize_pose import initialize_pose
+            pose = args.pose or cfg.get('startup', {}).get('standing_pose')
+            if not pose:
+                raise ValueError('provide --pose or startup.standing_pose')
+            print_json(initialize_pose(cfg, pose, arm=args.arm, seconds=args.seconds,
+                                       max_speed=args.max_speed, log_path=args.log))
         elif args.operation == "run":
             from .runtime import run
             print_json(run(cfg, hardware=args.hardware, arm=args.arm, autonomous=args.autonomous,
@@ -90,14 +103,20 @@ def main(argv=None):
             import numpy as np
             if not math.isfinite(args.seconds) or args.seconds <= 0:
                 raise ValueError('probe seconds must be finite and positive')
+            host_imu = None
             if args.operation == 'probe-tof':
                 from .tof import ThreadedToF
                 device = ThreadedToF(cfg['tof'])
             else:
                 from .transport import STM32Bridge
                 device = STM32Bridge(cfg['bridge'], armed=False)
+                if cfg['imu']['driver'] != 'stm32':
+                    from .hardware.imu import ThreadedImu
+                    host_imu = ThreadedImu(cfg['imu'])
             try:
                 device.start()
+                if host_imu is not None:
+                    host_imu.start()
                 began = time.monotonic()
                 first_sample = None
                 startup = cfg.get('tof', {}).get('startup_timeout_s', 30.) if args.operation == 'probe-tof' else cfg['safety']['startup_timeout_s']
@@ -111,14 +130,15 @@ def main(argv=None):
                                   'target_status': sample.target_status.tolist(), 'valid_zones': int(valid.sum()),
                                   'age_s': now - sample.stamp if received else None}
                     else:
-                        orientation = device.read_imu()
+                        orientation = host_imu.read() if host_imu is not None else device.read_imu()
                         link_status = device.status()
                         received = link_status['startup_sync_ready']
                         record = {'link': link_status,
                                   'q_rad': sample.position.tolist(), 'dq_rad_s': sample.velocity.tolist(),
                                   'joint_age_s': [now - t if t > 0 else None for t in sample.stamps],
                                   'imu_age_s': now - orientation.stamp if orientation.stamp > 0 else None,
-                                  'omega_rad_s': orientation.omega.tolist()}
+                                  'omega_rad_s': orientation.omega.tolist(),
+                                  'imu_source': cfg['imu']['driver']}
                     if received and first_sample is None:
                         first_sample = now
                     if first_sample is None and now - began >= startup:
@@ -126,7 +146,11 @@ def main(argv=None):
                     print_json(record)
                     time.sleep(.2)
             finally:
-                device.close()
+                try:
+                    device.close()
+                finally:
+                    if host_imu is not None and host_imu.thread.ident is not None:
+                        host_imu.close()
         elif args.operation == "probe-servos":
             from .hardware.lx824 import SerialBus
             if not 1 <= args.rounds <= 10000:

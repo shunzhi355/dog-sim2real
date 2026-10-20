@@ -25,6 +25,7 @@ MAX_PAYLOAD = 384
 HEADER = struct.Struct("<2sBBHHI")
 MAX_FRAME = MAX_PAYLOAD + 14
 HEARTBEAT, JOINT_TARGET, STOP, ARM = 1, 2, 3, 4
+POSE_CAPS, POSE_ARM, POSE_TARGET = 5, 6, 7
 JOINT_STATUS, IMU_STATUS, HEIGHT_SCAN, FAULT_STATUS, ACK = range(0x81, 0x86)
 # Proposed application extension, disabled by default; absent from current C.
 DELIVERY_REQUEST, DELIVERY_ACK = 0x10, 0x90
@@ -134,11 +135,33 @@ class STM32Bridge:
     cannot be reset in place. Explicit close and a new bridge are required.
     """
 
-    def __init__(self, cfg, armed=False):
+    def __init__(self, cfg, armed=False, *, imu_reader=None, raw_calibrations=None):
         c = dict(cfg)
         if type(armed) is not bool:
             raise ValueError("armed must be bool")
         self.armed = armed
+        # Optional nonblocking host IMU snapshot, shared with the policy loop.
+        # The serial worker checks its freshness even if inference stalls.
+        if imu_reader is not None and not callable(imu_reader):
+            raise ValueError("imu_reader must be callable")
+        self._imu_reader = imu_reader
+        self.raw_mode = c.get('target_units', 'radians') == 'servo_raw_count'
+        if c.get('target_units', 'radians') not in ('radians', 'servo_raw_count'):
+            raise ValueError('unknown bridge target units')
+        if self.raw_mode:
+            if imu_reader is None or raw_calibrations is None or len(raw_calibrations) != 12:
+                raise ValueError('raw mode requires twelve host calibrations and a host IMU')
+            if [v.servo_id for v in raw_calibrations] != list(range(1, 13)):
+                raise ValueError('raw bridge requires IDs 1..12 in wire order')
+        elif raw_calibrations is not None:
+            raise ValueError('raw calibrations supplied to radians bridge')
+        self._calibrations = raw_calibrations
+        self._arm_type = POSE_ARM if self.raw_mode else ARM
+        self._target_type = POSE_TARGET if self.raw_mode else JOINT_TARGET
+        self._caps_ready = not self.raw_mode
+        self._last_sent_raw = None
+        self._last_target_sent_at = 0.
+        self._raw_speed = positive(c.get('max_raw_speed_rad_s', 1.), 'max_raw_speed_rad_s')
         self.port = c["port"]
         if not isinstance(self.port, str) or not self.port:
             raise ValueError("bridge.port must name a serial device")
@@ -154,6 +177,8 @@ class STM32Bridge:
                 or any(type(i) is not int for i in mapping) or sorted(mapping) != list(range(12))):
             raise ValueError("bridge.joint_map must be a permutation of 0..11")
         self.mapping = np.asarray(mapping)
+        if self.raw_mode and mapping != list(range(12)):
+            raise ValueError('raw calibration requires canonical joint_map')
         for name, default in (("heartbeat_period_s", .1), ("heartbeat_timeout_s", .3),
                               ("ack_timeout_s", c.get("arm_timeout_s", .08)),
                               ("arm_timeout_s", .08), ("write_timeout_s", .02),
@@ -256,7 +281,7 @@ class STM32Bridge:
             import serial
             try:
                 self._serial = serial.Serial(self.port, self.baudrate, timeout=self.read_timeout_s,
-                                             write_timeout=self.write_timeout_s)
+                                             write_timeout=self.write_timeout_s, exclusive=True)
                 with self._io_lock:
                     self._serial.reset_input_buffer()
                 self._began = time.monotonic()
@@ -282,9 +307,23 @@ class STM32Bridge:
             return ImuState(self._omega.copy(), self._gravity.copy(), self._imu_stamp)
 
     def _sensors_ready(self, now):
+        stamp = self._imu_stamp
+        if self._imu_reader is not None:
+            try:
+                sample = self._imu_reader()
+                stamp = sample.stamp
+                if (sample.omega.shape != (3,) or sample.gravity.shape != (3,)
+                        or not np.isfinite(sample.omega).all()
+                        or not np.isfinite(sample.gravity).all()
+                        or not .98 <= np.linalg.norm(sample.gravity) <= 1.02):
+                    return False
+                # Sampling may occur after the caller obtained `now`.
+                now = time.monotonic()
+            except Exception:
+                return False
         return (np.all(self._stamps > 0) and np.all(now - self._stamps >= 0)
                 and np.all(now - self._stamps <= self.joint_timeout_s)
-                and self._imu_stamp > 0 and 0 <= now - self._imu_stamp <= self.imu_timeout_s)
+                and stamp > 0 and 0 <= now - stamp <= self.imu_timeout_s)
 
     def command(self, targets, now):
         """Publish radians and the ORIGINAL control-cycle monotonic time, never retime."""
@@ -371,7 +410,7 @@ class STM32Bridge:
     def _send(self, kind, payload=b"", *, context=None):
         now = time.monotonic()
         deadline = None
-        if kind in (HEARTBEAT, ARM, JOINT_TARGET, DELIVERY_REQUEST) and self._target is not None:
+        if kind in (HEARTBEAT, self._arm_type, self._target_type, DELIVERY_REQUEST) and self._target is not None:
             deadline = self._target[1] + self.target_timeout_s
             if now >= deadline:
                 raise SafetyFault("target expired before transmission")
@@ -448,6 +487,9 @@ class STM32Bridge:
         if self._pending is not None or self._finish.is_set() or self._anchor is None:
             return
         now = time.monotonic()
+        if not self._caps_ready:
+            self._send(POSE_CAPS)
+            return
         if self.armed and self._target is not None:
             if self._phase == "idle":
                 self._phase = "heartbeat"
@@ -456,7 +498,7 @@ class STM32Bridge:
                 return
             if self._phase == "arm_ready":
                 self._phase = "arming"
-                self._send(ARM, struct.pack("<H", ALL_JOINTS))
+                self._send(self._arm_type, struct.pack("<H", ALL_JOINTS))
                 return
             if self._phase == "running":
                 if now - self._last_heartbeat >= self.heartbeat_period_s:
@@ -464,7 +506,12 @@ class STM32Bridge:
                     return
                 values, _, generation = self._target
                 if generation != self._sent_generation:
-                    self._send(JOINT_TARGET, struct.pack("<HH12f", ALL_JOINTS, self.duration_ms, *values))
+                    # ACK/heartbeat delays must not create back-to-back raw
+                    # batches; leave one servo move period between batches.
+                    if self.raw_mode and now - self._last_target_sent_at < self.duration_ms/1000.:
+                        return
+                    self._send(self._target_type, self._target_payload(values))
+                    self._last_target_sent_at = time.monotonic()
                     self._sent_generation = generation
                     return
                 for request_id, value in self._deliveries.items():
@@ -475,6 +522,25 @@ class STM32Bridge:
         # Shadow/idle heartbeats never ARM and cannot substitute for command().
         if now - self._last_heartbeat >= self.heartbeat_period_s:
             self._send(HEARTBEAT)
+
+    def _target_payload(self, values):
+        if not self.raw_mode:
+            return struct.pack('<HH12f', ALL_JOINTS, self.duration_ms, *values)
+        # Validate the entire vector before sending any position. The same
+        # conversion supplies observations and targets; MCU receives counts.
+        raw = np.array([c.to_raw(float(q)) for c, q in zip(self._calibrations, values)])
+        if self._last_sent_raw is None or any(v is None for v in self._raw_position):
+            raise SafetyFault('raw target before fresh ARM feedback')
+        # A delayed ACK can skip host setpoints. Limit the ACTUAL transmitted
+        # step by elapsed time; never send a catch-up jump or renew its lease.
+        elapsed = min(max(time.monotonic() - self._last_target_sent_at, 0.), .04)
+        steps = np.minimum(10, np.floor([c.units_per_rad*self._raw_speed*elapsed
+                                        for c in self._calibrations])).astype(int)
+        raw = self._last_sent_raw + np.clip(raw-self._last_sent_raw, -steps, steps)
+        if np.max(np.abs(raw - np.asarray(self._raw_position))) > 35:
+            raise SafetyFault('raw target tracking error exceeds 35 counts')
+        self._last_sent_raw = raw.copy()
+        return struct.pack('<HH12H', ALL_JOINTS, self.duration_ms, *raw)
 
     def _receive(self, frame, arrival):
         sizes = {JOINT_STATUS: 290, IMU_STATUS: 41, HEIGHT_SCAN: 46, FAULT_STATUS: 76, ACK: 8}
@@ -553,10 +619,15 @@ class STM32Bridge:
             return
         if code:
             raise SafetyFault(f"STM32 rejected type {kind}: ACK code {code}")
-        if kind == ARM:
+        if kind == self._arm_type:
             if faults:
                 raise SafetyFault("ARM acknowledged with active faults")
             self._phase = "running"
+            if self.raw_mode:
+                self._last_sent_raw = np.asarray(self._raw_position).copy()
+                self._last_target_sent_at = time.monotonic() - self.duration_ms/1000.
+        elif kind == POSE_CAPS and self.raw_mode:
+            self._caps_ready = True
         elif kind == HEARTBEAT and self._phase == "heartbeat":
             self._phase = "arm_ready"
         elif kind == DELIVERY_REQUEST:
@@ -577,6 +648,9 @@ class STM32Bridge:
         return _newer(tick, previous[0], 32) and _newer(count, previous[1], 32)
 
     def _joints(self, frame, mapped):
+        if self.raw_mode:
+            self._raw_joints(frame, mapped)
+            return
         polling, = struct.unpack_from("<H", frame.payload)
         for i in range(12):
             flags, bus, raw, tick, count, q, dq, errors = JOINT_RECORD.unpack_from(frame.payload, 2 + i * 24)
@@ -593,6 +667,33 @@ class STM32Bridge:
             if self._fresh_sample(self._joint_samples[i], tick, count):
                 self._q[i], self._dq[i], self._stamps[i] = q, dq, stamp
                 self._joint_samples[i] = (tick, count)
+
+    def _raw_joints(self, frame, mapped):
+        polling, = struct.unpack_from('<H', frame.payload)
+        if polling & ~ALL_JOINTS:
+            raise SafetyFault('invalid raw polling mask')
+        for i, calibration in enumerate(self._calibrations):
+            flags, bus, raw, tick, count, _, _, _ = JOINT_RECORD.unpack_from(frame.payload, 2 + i*24)
+            if flags & ~7 or bus != i//3:
+                raise SafetyFault('raw joint flags/bus disagree with calibration')
+            self._raw_position[i], self._joint_flags[i] = raw, flags
+            if not flags & 1 or not polling & (1 << i) or not 0 <= raw <= 1000:
+                self._stamps[i] = 0.
+                self._joint_samples[i] = None
+                continue
+            previous = self._joint_samples[i]
+            if not self._fresh_sample(previous, tick, count):
+                continue  # Repeated telemetry never refreshes sensor time.
+            stamp = self._sample_time(frame, tick, mapped)
+            q = calibration.from_raw(raw)
+            interval = ((tick - previous[0]) & 0xffffffff)/1000. if previous else 0.
+            if previous and 0 < interval <= self.joint_timeout_s:
+                self._dq[i] = (q - self._q[i])/interval
+                self._stamps[i] = stamp
+            else:
+                self._stamps[i] = 0.  # Two actual acquisitions are needed for dq.
+            self._q[i] = q
+            self._joint_samples[i] = (tick, count)
 
     def _imu(self, frame, mapped):
         valid, tick, count, *values = IMU_RECORD.unpack(frame.payload)

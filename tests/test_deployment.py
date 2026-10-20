@@ -52,6 +52,8 @@ def test_real_runtime_onnx_through_fake_stm32(host_cfg, monkeypatch, armed, tmp_
     monkeypatch.setattr(wire, 'imu_payload', lambda tick, count: original(tick, count, roll=0., pitch=0.))
     host_cfg['tof']['enabled'] = False
     host_cfg['bridge'].update(port='FAKE', verified=True, imu_mount_verified=True, joint_mapping_verified=True)
+    host_cfg['imu']['driver'] = 'stm32'  # This fixture emits legacy MCU IMU telemetry.
+    host_cfg['startup']['enabled'] = False  # This wire fixture starts in policy stance.
     for joint in host_cfg['joints']:
         joint.update(verified=True, min_rad=-2., max_rad=2.)
     summary = run(host_cfg, hardware=True, arm=armed, seconds=.22, log_path=tmp_path / 'control.jsonl')
@@ -62,6 +64,39 @@ def test_real_runtime_onnx_through_fake_stm32(host_cfg, monkeypatch, armed, tmp_
     assert (wire.JOINT_TARGET in types) == armed
     assert wire.DELIVERY_REQUEST not in types
     assert '"target"' in (tmp_path / 'control.jsonl').read_text()
+
+
+def test_policy_runtime_uses_host_imu_without_mcu_imu(host_cfg, monkeypatch):
+    import time
+    import test_transport as wire
+
+    fake = wire.FakeSerial()
+    emit = fake.emit
+    monkeypatch.setattr(fake, 'emit', lambda kind, payload, tick=None:
+                        None if kind == wire.IMU_STATUS else emit(kind, payload, tick))
+    monkeypatch.setattr('serial.Serial', fake.factory)
+    lifecycle = []
+    class HostImu:
+        def __init__(self, cfg):
+            assert cfg['driver'] == 'hipnuc_serial'
+        def start(self): lifecycle.append('start')
+        def close(self): lifecycle.append('close')
+        def read(self):
+            assert lifecycle == ['start']
+            return ImuState(np.zeros(3), np.array([0., 0., -1.]), time.monotonic())
+    monkeypatch.setattr('dog3588.runtime.ThreadedImu', HostImu)
+    host_cfg['tof']['enabled'] = False
+    host_cfg['startup']['enabled'] = False
+    host_cfg['imu']['mount_verified'] = True
+    host_cfg['bridge'].update(port='FAKE', verified=True, joint_mapping_verified=True,
+                              imu_mount_verified=False)
+    for joint in host_cfg['joints']:
+        joint.update(verified=True, min_rad=-2., max_rad=2.)
+    summary = run(host_cfg, hardware=True, arm=True, seconds=.22)
+    assert summary['ticks'] >= 5 and fake.closed and lifecycle == ['start', 'close']
+    kinds = [f.type for f in fake.frames]
+    assert kinds[0] == kinds[-1] == wire.STOP
+    assert wire.JOINT_TARGET in kinds
 
 
 def test_tof_and_imu_pairing_uses_nearest_acquisition(host_cfg, manifest, monkeypatch):

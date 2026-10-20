@@ -1,0 +1,268 @@
+# Policy test: Orange Pi converts radians/counts; existing pose-v1 firmware executes.
+version: 1
+backend: stm32
+policy_manifest: ../policies/model4497/manifest.json
+command:
+  host: 127.0.0.1
+  port: 9871
+  source: manual
+  timeout_s: 0.3
+gait:
+- 1.5
+- 0.575
+- 0.02
+- 0.0
+- 0.5
+- 0.5
+- 0.0
+startup:
+  enabled: false
+  prone_pose: poses/prone.json
+  standing_pose: poses/standing.json
+  trajectory_verified: false
+  initial_hold_s: 0.5
+  rise_duration_s: 4.0
+  max_rise_duration_s: 30.0
+  max_speed_rad_s: 0.35
+  prone_tolerance_rad: 0.12
+  tracking_tolerance_rad: 0.25
+  standing_tolerance_rad: 0.04
+  settle_duration_s: 1.0
+  settle_timeout_s: 5.0
+  settle_speed_rad_s: 0.15
+  settle_omega_rad_s: 0.15
+  settle_tilt_rad: 0.12
+safety:
+  joint_timeout_s: 0.1
+  imu_timeout_s: 0.1
+  target_timeout_s: 0.08
+  max_tilt_rad: 0.35
+  max_target_speed_rad_s: 1.0
+  max_action_abs: 8.0
+  startup_pose_tolerance_rad: 0.25
+  startup_timeout_s: 35.0
+  max_loop_lag_s: 0.05
+bridge:
+  port: /dev/ttyS1
+  baudrate: 921600
+  verified: true
+  imu_mount_verified: false
+  joint_mapping_verified: true
+  target_timeout_s: 0.08
+  heartbeat_period_s: 0.1
+  read_timeout_s: 0.005
+  write_timeout_s: 0.02
+  telemetry_timeout_s: 0.1
+  arm_timeout_s: 0.08
+  target_units: servo_raw_count
+  calibration_pose: poses/standing-zero.json
+imu:
+  driver: hipnuc_serial
+  serial_port: /dev/ttyS3
+  baudrate: 460800
+  mount_verified: true
+  sensor_to_body:
+  - - 1
+    - 0
+    - 0
+  - - 0
+    - 1
+    - 0
+  - - 0
+    - 0
+    - 1
+buses: []
+tof:
+  enabled: false
+  driver: vl53l5cx_ctypes
+  i2c_bus: 2
+  i2c_address: 41
+  frequency_hz: 15
+  poll_interval_s: 0.002
+  startup_timeout_s: 30.0
+  frame_timeout_s: 0.15
+  close_timeout_s: 2.0
+  measurement_latency_s: 0.0
+  imu_timeout_s: 0.15
+  max_skew_s: 0.03
+  frame_duration_s: 0.06666666666666667
+  max_rotation_rad: 0.1
+  max_tilt_rad: 0.35
+  min_distance_m: 0.02
+  max_distance_m: 2.0
+  min_height_m: -1.0
+  max_height_m: 0.5
+  valid_statuses:
+  - 5
+  height_reference: body_origin
+  verified: false
+  rays_verified: false
+  mount_verified: false
+  sampling_verified: false
+  reference_verified: false
+  ray: null
+  sensor_to_body: null
+  origin_body_m: null
+  sample_xy_m: null
+  max_xy_error_m: null
+vision:
+  verified: false
+  source: /dev/video0
+  backend: v4l2
+  width: 640
+  height: 480
+  fps: 30
+  max_frame_age_s: 0.15
+  close_timeout_s: 0.5
+  line:
+    roi_top: 0.55
+    hsv_low:
+    - 0
+    - 0
+    - 150
+    hsv_high:
+    - 179
+    - 80
+    - 255
+    min_area_px: 150
+  follow:
+    forward_m_s: 0.12
+    max_yaw_rad_s: 0.4
+    lateral_gain: 0.5
+    heading_gain: 0.4
+  semantic_rois:
+    track:
+    - 0.0
+    - 0.45
+    - 1.0
+    - 1.0
+    parcel: null
+  colour_filter:
+    min_area_px: 200
+    min_width_fraction: 0.35
+    min_aspect_ratio: 2.5
+    min_confidence: 0.6
+  parcel_filter:
+    min_area_px: 80
+    min_confidence: 0.5
+  colours:
+    red:
+    - - - 0
+        - 100
+        - 181
+      - - 10
+        - 255
+        - 255
+    - - - 170
+        - 100
+        - 181
+      - - 179
+        - 255
+        - 255
+    green:
+    - - - 35
+        - 80
+        - 60
+      - - 85
+        - 255
+        - 255
+    blue:
+    - - - 95
+        - 100
+        - 60
+      - - 130
+        - 255
+        - 255
+    yellow:
+    - - - 20
+        - 100
+        - 100
+      - - 34
+        - 255
+        - 255
+    brown:
+    - - - 0
+        - 80
+        - 30
+      - - 19
+        - 230
+        - 180
+autonomy:
+  require_terrain_policy: true
+  stability:
+    max_tilt_rad: 0.1
+    max_omega_rad_s: 0.1
+    max_joint_speed_rad_s: 0.2
+mission:
+  parcel_colour: null
+  route_map: {}
+  return_route_map: {}
+  forward_m_s: 0.12
+  approach_m_s: 0.06
+  cross_m_s: 0.06
+  dock_m_s: 0.03
+  turn_rad_s: 0.3
+  stable_duration_s: 3.0
+  max_vision_age_s: 0.15
+  max_tof_age_s: 0.15
+  debounce_frames: 2
+  release_frames: 2
+  reacquire_frames: 3
+joints:
+- name: fl_hip_joint
+  verified: true
+  min_rad: -0.23889194136672387
+  max_rad: 0.27897997262346863
+- name: fl_upper_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: fl_input_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: fr_hip_joint
+  verified: true
+  min_rad: -0.23889194136672387
+  max_rad: 0.27897997262346863
+- name: fr_upper_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: fr_input_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: rl_hip_joint
+  verified: true
+  min_rad: -0.2615266801035253
+  max_rad: 0.35
+- name: rl_upper_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: rl_input_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: rr_hip_joint
+  verified: true
+  min_rad: -0.2615266801035253
+  max_rad: 0.35
+- name: rr_upper_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+- name: rr_input_joint
+  verified: true
+  min_rad: -0.35
+  max_rad: 0.35
+commissioning:
+  reference_pose: poses/standing-zero.json
+  mechanical_limits_measured: false
+  limits_source: user-authorized local software test envelope intersected with URDF
+    and servo travel
+  requires_updated_mcu_calibration: false
+  stand_before_policy: true
+  requires_pose_v1: true
+  conversion_owner: orange_pi

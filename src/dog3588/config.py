@@ -83,6 +83,11 @@ def load_config(path: str | Path) -> dict:
     if not isinstance(cfg, dict) or cfg.get("version") != 1:
         raise ValueError("expected configuration version 1")
     cfg["policy_manifest"] = str((path.parent / cfg["policy_manifest"]).resolve())
+    for key in ("prone_pose", "standing_pose"):
+        if key in cfg.get("startup", {}):
+            cfg["startup"][key] = str((path.parent / cfg["startup"][key]).resolve())
+    if cfg.get('bridge', {}).get('calibration_pose'):
+        cfg['bridge']['calibration_pose'] = str((path.parent / cfg['bridge']['calibration_pose']).resolve())
     if cfg["command"]["host"] != "127.0.0.1":
         raise ValueError("command socket must bind to loopback; use SSH for remote control")
     if cfg["command"]["source"] not in ("manual", "vision"):
@@ -125,7 +130,7 @@ def validate_hardware(cfg: dict, joint_names: list[str], *, arm: bool) -> list[C
             raise ValueError("LX824 bus requires 115200 baud")
         for key in ("read_timeout_s", "query_period_s", "quiet_after_timeout_s"):
             positive(bus[key], f"bus.{key}")
-    if cfg["imu"]["driver"] not in ("wit_serial", "mpu6050_i2c"):
+    if cfg["imu"]["driver"] not in ("wit_serial", "mpu6050_i2c", "hipnuc_serial"):
         raise ValueError("select a real IMU driver before using hardware")
     if arm:
         if not all(b.get("verified") is True for b in buses):
@@ -157,11 +162,32 @@ def validate_bridge_hardware(cfg, joint_names, *, arm):
         raise ValueError("configure an independent STM32 serial port and baudrate")
     if [j["name"] for j in cfg["joints"]] != joint_names:
         raise ValueError("STM32 joint order differs from policy manifest")
+    imu = cfg['imu']
+    if imu['driver'] not in ('stm32', 'wit_serial', 'mpu6050_i2c', 'hipnuc_serial'):
+        raise ValueError('select a supported host or STM32 IMU driver')
+    if imu['driver'] in ('wit_serial', 'hipnuc_serial'):
+        if not imu.get('serial_port') or imu['serial_port'] == bridge['port']:
+            raise ValueError('host IMU requires an independent serial port')
+        if type(imu.get('baudrate')) is not int or imu['baudrate'] <= 0:
+            raise ValueError('host IMU requires a positive baudrate')
+    mode = bridge.get('target_units', 'radians')
+    if mode not in ('radians', 'servo_raw_count'):
+        raise ValueError('bridge.target_units must be radians or servo_raw_count')
+    raw_calibrations = None
+    if mode == 'servo_raw_count':
+        if imu['driver'] == 'stm32':
+            raise ValueError('raw servo bridge requires the host IMU')
+        raw_calibrations = load_bridge_calibrations(cfg, joint_names)
     if not arm:
-        return None
-    for key in ("verified", "imu_mount_verified", "joint_mapping_verified"):
+        return raw_calibrations
+    for key in ("verified", "joint_mapping_verified"):
         if bridge.get(key) is not True:
             raise ValueError(f"bridge.{key} must be verified before arming")
+    if imu['driver'] == 'stm32':
+        if bridge.get('imu_mount_verified') is not True:
+            raise ValueError('bridge.imu_mount_verified must be verified before arming')
+    elif imu.get('mount_verified') is not True:
+        raise ValueError('imu.mount_verified must be verified before arming')
     limits = []
     for joint in cfg["joints"]:
         if joint.get("verified") is not True:
@@ -170,5 +196,25 @@ def validate_bridge_hardware(cfg, joint_names, *, arm):
         if lo >= hi:
             raise ValueError("joint minimum must be below maximum")
         limits.append(JointLimits(joint["name"], lo, hi))
-    return limits
+    return raw_calibrations if raw_calibrations is not None else limits
+
+
+def load_bridge_calibrations(cfg, joint_names):
+    """User-defined reference and confirmed conversion; bounds remain explicit."""
+    import json
+    pose = json.loads(Path(cfg['bridge']['calibration_pose']).read_text(encoding='utf-8'))
+    if (pose.get('joint_names') != joint_names or pose.get('servo_ids') != list(range(1, 13))
+            or pose.get('units') != 'servo_raw_count' or pose.get('calibration_zero') is not True
+            or pose.get('user_confirmed') is not True
+            or pose.get('direction_signs_verified') is not True
+            or pose.get('position_scale_verified') is not True):
+        raise ValueError('raw bridge requires confirmed reference, directions and scale')
+    for key in ('raw_positions', 'direction_signs', 'model_joint_positions_rad'):
+        if not isinstance(pose.get(key), list) or len(pose[key]) != 12:
+            raise ValueError(f'calibration {key} requires twelve values')
+    return [Calibration.from_dict(dict(
+        joint, bus=('fl', 'fr', 'rl', 'rr')[i//3], id=i+1,
+        raw_zero=pose['raw_positions'][i], direction=pose['direction_signs'][i],
+        units_per_rad=pose['position_units_per_rad'], zero_rad=pose['model_joint_positions_rad'][i]
+    )) for i, joint in enumerate(cfg['joints'])]
 
